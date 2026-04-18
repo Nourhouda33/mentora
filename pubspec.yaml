@@ -42,6 +42,7 @@ dependencies:
 
   # PDF
   pdf: ^3.11.1
+  open_file: ^3.3.2
 
   # Notifications
   flutter_local_notifications: ^18.0.1

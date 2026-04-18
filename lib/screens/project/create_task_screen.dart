@@ -1,13 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme.dart';
-import '../../providers/app_settings_provider.dart';
 import '../../providers/collaboration_provider.dart';
-
-// Demo members list — FIREBASE_DEMO_MODE
-const _demoMembers = ['Ahmed', 'Lina', 'Sara', 'David', 'Alex Rivers'];
 
 class CreateTaskScreen extends StatefulWidget {
   const CreateTaskScreen({super.key});
@@ -18,9 +16,51 @@ class CreateTaskScreen extends StatefulWidget {
 
 class _CreateTaskScreenState extends State<CreateTaskScreen> {
   final _titleCtrl = TextEditingController();
-  String _assignee = _demoMembers.first;
   TaskPriority _priority = TaskPriority.high;
   TaskStatus _status = TaskStatus.todo;
+  bool _loading = false;
+
+  // Members loaded from Firestore: {uid: displayName}
+  Map<String, String> _members = {};
+  String? _selectedUid;
+
+  String get _currentUid => FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadMembers());
+  }
+
+  Future<void> _loadMembers() async {
+    final args =
+        ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+    final project = args?['project'] as ProjectModel?;
+    if (project == null) return;
+
+    final Map<String, String> result = {};
+    for (final uid in project.members) {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      if (doc.exists) {
+        final d = doc.data() as Map<String, dynamic>;
+        result[uid] = d['name'] ?? d['email'] ?? uid;
+      } else {
+        result[uid] = uid;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _members = result;
+        _selectedUid = result.containsKey(_currentUid)
+            ? _currentUid
+            : result.keys.firstOrNull;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -28,30 +68,32 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     super.dispose();
   }
 
-  void _create() {
+  Future<void> _create() async {
     if (_titleCtrl.text.trim().isEmpty) return;
+    if (_selectedUid == null) return;
 
     final args =
         ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
     final project = args?['project'] as ProjectModel?;
     if (project == null) return;
 
-    context.read<CollaborationProvider>().addTask(TaskModel(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
+    setState(() => _loading = true);
+
+    await context.read<CollaborationProvider>().addTask(TaskModel(
+          id: '',
           projectId: project.id,
           title: _titleCtrl.text.trim(),
-          assignedTo: _assignee,
+          assignedTo: _members[_selectedUid!] ?? _selectedUid!,
+          assignedToUid: _selectedUid!,
           priority: _priority,
           status: _status,
         ));
 
-    Navigator.pop(context);
+    if (mounted) Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    final s = context.watch<AppSettingsProvider>();
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -94,161 +136,170 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Task Title ──────────────────────────────────────────
-            _Card(
+      body: _members.isEmpty
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _Label('Task Title'),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _titleCtrl,
-                    style: GoogleFonts.sora(
-                      color: AppColors.textPrimary,
-                      fontSize: 14,
+                  // ── Task Title ────────────────────────────────────
+                  _Card(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _Label('Task Title'),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: _titleCtrl,
+                          style: GoogleFonts.sora(
+                              color: AppColors.textPrimary, fontSize: 14),
+                          decoration: InputDecoration(
+                            hintText: 'e.g., Finalize Q4 Design System',
+                            hintStyle: GoogleFonts.sora(
+                                color: AppColors.textSecondary, fontSize: 14),
+                            filled: true,
+                            fillColor: AppColors.background,
+                            border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(AppRadii.sm),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 14),
+                          ),
+                        ),
+                      ],
                     ),
-                    decoration: InputDecoration(
-                      hintText: 'e.g., Finalize Q4 Design System',
-                      hintStyle: GoogleFonts.sora(
-                        color: AppColors.textSecondary,
-                        fontSize: 14,
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ── Assignee ──────────────────────────────────────
+                  _Card(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            _Label('Assignee'),
+                            const Spacer(),
+                            const Icon(Icons.people_outline,
+                                color: AppColors.primary, size: 18),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        _AssigneeDropdown(
+                          selectedUid: _selectedUid,
+                          members: _members,
+                          onChanged: (uid) =>
+                              setState(() => _selectedUid = uid),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ── Priority Level ────────────────────────────────
+                  _Card(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _Label('Priority Level'),
+                        const SizedBox(height: 12),
+                        _PriorityOption(
+                          label: 'High',
+                          icon: '!',
+                          color: AppColors.error,
+                          selected: _priority == TaskPriority.high,
+                          onTap: () =>
+                              setState(() => _priority = TaskPriority.high),
+                        ),
+                        const SizedBox(height: 8),
+                        _PriorityOption(
+                          label: 'Medium',
+                          iconWidget: const Icon(Icons.menu_rounded,
+                              color: AppColors.textSecondary, size: 18),
+                          color: AppColors.inProgressOrange,
+                          selected: _priority == TaskPriority.medium,
+                          onTap: () =>
+                              setState(() => _priority = TaskPriority.medium),
+                        ),
+                        const SizedBox(height: 8),
+                        _PriorityOption(
+                          label: 'Low',
+                          iconWidget: const Icon(Icons.low_priority_rounded,
+                              color: AppColors.textSecondary, size: 18),
+                          color: AppColors.success,
+                          selected: _priority == TaskPriority.low,
+                          onTap: () =>
+                              setState(() => _priority = TaskPriority.low),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ── Initial Status ────────────────────────────────
+                  _Card(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _Label('Initial Status'),
+                        const SizedBox(height: 12),
+                        _StatusToggle(
+                          value: _status,
+                          onChanged: (v) => setState(() => _status = v),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // ── Create Task button ────────────────────────────
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: _loading ? null : _create,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadii.md),
+                        ),
+                        elevation: 0,
                       ),
-                      filled: true,
-                      fillColor: AppColors.background,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppRadii.sm),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 14),
+                      child: _loading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : Text(
+                              'Create Task',
+                              style: GoogleFonts.sora(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-
-            // ── Assignee ────────────────────────────────────────────
-            _Card(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      _Label('Assignee'),
-                      const Spacer(),
-                      const Icon(Icons.people_outline,
-                          color: AppColors.primary, size: 18),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  _AssigneeDropdown(
-                    value: _assignee,
-                    members: _demoMembers,
-                    onChanged: (v) => setState(() => _assignee = v!),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // ── Priority Level ──────────────────────────────────────
-            _Card(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _Label('Priority Level'),
-                  const SizedBox(height: 12),
-                  _PriorityOption(
-                    label: 'High',
-                    icon: '!',
-                    color: AppColors.error,
-                    selected: _priority == TaskPriority.high,
-                    onTap: () => setState(() => _priority = TaskPriority.high),
-                  ),
-                  const SizedBox(height: 8),
-                  _PriorityOption(
-                    label: 'Medium',
-                    iconWidget: const Icon(Icons.menu_rounded,
-                        color: AppColors.textSecondary, size: 18),
-                    color: AppColors.inProgressOrange,
-                    selected: _priority == TaskPriority.medium,
-                    onTap: () =>
-                        setState(() => _priority = TaskPriority.medium),
-                  ),
-                  const SizedBox(height: 8),
-                  _PriorityOption(
-                    label: 'Low',
-                    iconWidget: const Icon(Icons.low_priority_rounded,
-                        color: AppColors.textSecondary, size: 18),
-                    color: AppColors.success,
-                    selected: _priority == TaskPriority.low,
-                    onTap: () => setState(() => _priority = TaskPriority.low),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // ── Initial Status ──────────────────────────────────────
-            _Card(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _Label('Initial Status'),
-                  const SizedBox(height: 12),
-                  _StatusToggle(
-                    value: _status,
-                    onChanged: (v) => setState(() => _status = v),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 28),
-
-            // ── Create Task button ──────────────────────────────────
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: ElevatedButton(
-                onPressed: _create,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadii.md),
-                  ),
-                  elevation: 0,
-                ),
-                child: Text(
-                  'Create Task',
-                  style: GoogleFonts.sora(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
 
 // ── Assignee dropdown ─────────────────────────────────────────────────────────
 class _AssigneeDropdown extends StatelessWidget {
-  final String value;
-  final List<String> members;
+  final String? selectedUid;
+  final Map<String, String> members;
   final ValueChanged<String?> onChanged;
 
   const _AssigneeDropdown({
-    required this.value,
+    required this.selectedUid,
     required this.members,
     required this.onChanged,
   });
@@ -266,6 +317,7 @@ class _AssigneeDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final uids = members.keys.toList();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
@@ -274,78 +326,57 @@ class _AssigneeDropdown extends StatelessWidget {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: value,
+          value: selectedUid,
           isExpanded: true,
           dropdownColor: AppColors.surface,
           icon: const Icon(Icons.keyboard_arrow_down_rounded,
               color: AppColors.textSecondary),
           onChanged: onChanged,
-          selectedItemBuilder: (ctx) => members.map((m) {
-            return Row(
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _avatarColor(m),
-                  ),
-                  child: Center(
-                    child: Text(
-                      m[0].toUpperCase(),
-                      style: GoogleFonts.sora(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  m,
-                  style: GoogleFonts.sora(
-                    color: AppColors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
-          items: members.map((m) {
-            return DropdownMenuItem<String>(
-              value: m,
-              child: Row(
-                children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _avatarColor(m),
-                    ),
-                    child: Center(
-                      child: Text(
-                        m[0].toUpperCase(),
+          selectedItemBuilder: (ctx) => uids.map((uid) {
+            final name = members[uid] ?? uid;
+            return Row(children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                    shape: BoxShape.circle, color: _avatarColor(name)),
+                child: Center(
+                    child: Text(name[0].toUpperCase(),
                         style: GoogleFonts.sora(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    m,
-                    style: GoogleFonts.sora(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700))),
+              ),
+              const SizedBox(width: 10),
+              Text(name,
+                  style: GoogleFonts.sora(
                       color: AppColors.textPrimary,
                       fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
+                      fontWeight: FontWeight.w500)),
+            ]);
+          }).toList(),
+          items: uids.map((uid) {
+            final name = members[uid] ?? uid;
+            return DropdownMenuItem<String>(
+              value: uid,
+              child: Row(children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                      shape: BoxShape.circle, color: _avatarColor(name)),
+                  child: Center(
+                      child: Text(name[0].toUpperCase(),
+                          style: GoogleFonts.sora(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700))),
+                ),
+                const SizedBox(width: 10),
+                Text(name,
+                    style: GoogleFonts.sora(
+                        color: AppColors.textPrimary, fontSize: 14)),
+              ]),
             );
           }).toList(),
         ),
@@ -354,7 +385,7 @@ class _AssigneeDropdown extends StatelessWidget {
   }
 }
 
-// ── Priority option row ───────────────────────────────────────────────────────
+// ── Priority option ───────────────────────────────────────────────────────────
 class _PriorityOption extends StatelessWidget {
   final String label;
   final String? icon;
@@ -379,7 +410,8 @@ class _PriorityOption extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: selected ? color.withOpacity(0.15) : AppColors.background,
           borderRadius: BorderRadius.circular(AppRadii.sm),
@@ -389,25 +421,20 @@ class _PriorityOption extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Text(
-              label,
-              style: GoogleFonts.sora(
-                color: selected ? color : AppColors.textPrimary,
-                fontSize: 14,
-                fontWeight:
-                    selected ? FontWeight.w600 : FontWeight.w400,
-              ),
-            ),
+            Text(label,
+                style: GoogleFonts.sora(
+                    color: selected ? color : AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: selected
+                        ? FontWeight.w600
+                        : FontWeight.w400)),
             const Spacer(),
             if (icon != null)
-              Text(
-                icon!,
-                style: TextStyle(
-                  color: selected ? color : AppColors.textSecondary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              )
+              Text(icon!,
+                  style: TextStyle(
+                      color: selected ? color : AppColors.textSecondary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700))
             else if (iconWidget != null)
               iconWidget!,
           ],
@@ -454,11 +481,8 @@ class _ToggleBtn extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _ToggleBtn({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+  const _ToggleBtn(
+      {required this.label, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -473,18 +497,16 @@ class _ToggleBtn extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadii.sm),
           ),
           child: Center(
-            child: Text(
-              label,
-              style: GoogleFonts.sora(
-                color: selected
-                    ? AppColors.textPrimary
-                    : AppColors.textSecondary,
-                fontSize: 12,
-                fontWeight:
-                    selected ? FontWeight.w700 : FontWeight.w400,
-                letterSpacing: 0.5,
-              ),
-            ),
+            child: Text(label,
+                style: GoogleFonts.sora(
+                    color: selected
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: selected
+                        ? FontWeight.w700
+                        : FontWeight.w400,
+                    letterSpacing: 0.5)),
           ),
         ),
       ),
@@ -498,17 +520,15 @@ class _Card extends StatelessWidget {
   const _Card({required this.child});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadii.md),
-      ),
-      child: child,
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadii.md),
+        ),
+        child: child,
+      );
 }
 
 class _Label extends StatelessWidget {
@@ -516,14 +536,9 @@ class _Label extends StatelessWidget {
   const _Label(this.text);
 
   @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
+  Widget build(BuildContext context) => Text(text,
       style: GoogleFonts.sora(
-        color: AppColors.textSecondary,
-        fontSize: 13,
-        fontWeight: FontWeight.w500,
-      ),
-    );
-  }
+          color: AppColors.textSecondary,
+          fontSize: 13,
+          fontWeight: FontWeight.w500));
 }

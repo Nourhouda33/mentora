@@ -1,98 +1,128 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme.dart';
 import '../../../core/routes.dart';
-import '../../../providers/app_settings_provider.dart';
 import '../../../providers/collaboration_provider.dart';
 
-// FIREBASE_DEMO_MODE
-const _currentUid = 'demo_user';
-const _currentUser = 'Ahmed';
-
-// Demo seed data shown when project has no tasks yet
-final _demoTasks = [
-  _DemoTask('Prepare presentation slides', 'Ahmed', TaskStatus.inProgress),
-  _DemoTask('Finalize app prototype', 'Ahmed', TaskStatus.todo),
-  _DemoTask('Send Figma link to team', 'Ahmed', TaskStatus.todo),
-  _DemoTask('Write user stories', 'Lina', TaskStatus.done),
-  _DemoTask('Create onboarding flow', 'Lina', TaskStatus.inProgress),
-  _DemoTask('User research report', 'Sara', TaskStatus.inProgress),
-];
-
-class _DemoTask {
-  final String title;
-  final String assignedTo;
-  final TaskStatus status;
-  _DemoTask(this.title, this.assignedTo, this.status);
-}
-
-class TasksTab extends StatelessWidget {
+class TasksTab extends StatefulWidget {
   final ProjectModel project;
   const TasksTab({super.key, required this.project});
 
   @override
+  State<TasksTab> createState() => _TasksTabState();
+}
+
+class _TasksTabState extends State<TasksTab> {
+  late final Stream<List<TaskModel>> _tasksStream;
+
+  String get _uid => FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _tasksStream = context
+        .read<CollaborationProvider>()
+        .tasksStream(widget.project.id);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final collab = context.watch<CollaborationProvider>();
-    final realTasks = collab.tasksForProject(project.id);
+    return StreamBuilder<List<TaskModel>>(
+      stream: _tasksStream,
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+          return const Center(
+              child: CircularProgressIndicator(color: AppColors.primary));
+        }
 
-    // Use demo tasks if no real tasks yet
-    final Map<String, List<_TaskEntry>> grouped = {};
+        final tasks = snap.data ?? [];
 
-    if (realTasks.isEmpty) {
-      for (final d in _demoTasks) {
-        grouped.putIfAbsent(d.assignedTo, () => []).add(
-              _TaskEntry(id: d.title, title: d.title, status: d.status),
-            );
-      }
-    } else {
-      for (final t in realTasks) {
-        final key = t.assignedTo.isEmpty ? 'Unassigned' : t.assignedTo;
-        grouped.putIfAbsent(key, () => []).add(
-              _TaskEntry(id: t.id, title: t.title, status: t.status, real: t),
-            );
-      }
-    }
+        if (tasks.isEmpty) {
+          return Stack(
+            children: [
+              Center(
+                child: Text(
+                  'No tasks yet. Add the first one!',
+                  style: GoogleFonts.sora(
+                      color: AppColors.textSecondary, fontSize: 14),
+                ),
+              ),
+              _AddTaskFab(project: widget.project),
+            ],
+          );
+        }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
-      children: grouped.entries.map((entry) {
-        return _MemberGroup(
-          memberName: entry.key,
-          tasks: entry.value,
-          project: project,
-          isDemo: realTasks.isEmpty,
+        final Map<String, List<TaskModel>> grouped = {};
+        for (final t in tasks) {
+          final key = t.assignedTo.isEmpty ? 'Unassigned' : t.assignedTo;
+          grouped.putIfAbsent(key, () => []).add(t);
+        }
+
+        return Stack(
+          children: [
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+              children: grouped.entries.map((entry) {
+                return _MemberGroup(
+                  memberName: entry.key,
+                  tasks: entry.value,
+                  project: widget.project,
+                  currentUid: _uid,
+                );
+              }).toList(),
+            ),
+            _AddTaskFab(project: widget.project),
+          ],
         );
-      }).toList(),
+      },
     );
   }
 }
 
-class _TaskEntry {
-  final String id;
-  final String title;
-  final TaskStatus status;
-  final TaskModel? real;
-  _TaskEntry(
-      {required this.id,
-      required this.title,
-      required this.status,
-      this.real});
+// ── FAB ───────────────────────────────────────────────────────────────────────
+class _AddTaskFab extends StatelessWidget {
+  final ProjectModel project;
+  const _AddTaskFab({required this.project});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: 16,
+      right: 16,
+      child: FloatingActionButton.extended(
+        heroTag: 'add_task',
+        onPressed: () => Navigator.pushNamed(
+          context,
+          AppRoutes.createTask,
+          arguments: {'project': project},
+        ),
+        backgroundColor: AppColors.primary,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: Text(
+          'Add Task',
+          style: GoogleFonts.sora(
+              color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
 }
 
 // ── Member group ──────────────────────────────────────────────────────────────
 class _MemberGroup extends StatelessWidget {
   final String memberName;
-  final List<_TaskEntry> tasks;
+  final List<TaskModel> tasks;
   final ProjectModel project;
-  final bool isDemo;
+  final String currentUid;
 
   const _MemberGroup({
     required this.memberName,
     required this.tasks,
     required this.project,
-    required this.isDemo,
+    required this.currentUid,
   });
 
   Color _avatarColor(String name) {
@@ -111,7 +141,6 @@ class _MemberGroup extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Member header
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Row(
@@ -143,43 +172,30 @@ class _MemberGroup extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${tasks.length}',
+                  style: GoogleFonts.sora(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
             ],
           ),
         ),
-
-        // Task items
         ...tasks.map((t) => _TaskRow(
-              entry: t,
+              task: t,
               project: project,
-              isDemo: isDemo,
+              currentUid: currentUid,
             )),
-
-        // + Add task
-        GestureDetector(
-          onTap: () => Navigator.pushNamed(
-            context,
-            AppRoutes.createTask,
-            arguments: {'project': project, 'assignTo': memberName},
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.add, color: AppColors.textSecondary, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  '+ Add task',
-                  style: GoogleFonts.sora(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
         const SizedBox(height: 4),
       ],
     );
@@ -188,15 +204,18 @@ class _MemberGroup extends StatelessWidget {
 
 // ── Task row ──────────────────────────────────────────────────────────────────
 class _TaskRow extends StatelessWidget {
-  final _TaskEntry entry;
+  final TaskModel task;
   final ProjectModel project;
-  final bool isDemo;
+  final String currentUid;
 
   const _TaskRow({
-    required this.entry,
+    required this.task,
     required this.project,
-    required this.isDemo,
+    required this.currentUid,
   });
+
+  bool get _canEdit =>
+      task.assignedToUid == currentUid || project.ownerId == currentUid;
 
   @override
   Widget build(BuildContext context) {
@@ -208,68 +227,64 @@ class _TaskRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: task.assignedToUid == currentUid
+            ? Border.all(
+                color: AppColors.primary.withOpacity(0.3), width: 1)
+            : null,
       ),
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              entry.title,
-              style: GoogleFonts.sora(
-                color: AppColors.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.title,
+                  style: GoogleFonts.sora(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    decoration: task.status == TaskStatus.done
+                        ? TextDecoration.lineThrough
+                        : null,
+                  ),
+                ),
+                if (task.priority != TaskPriority.medium) ...[
+                  const SizedBox(height: 4),
+                  _PriorityChip(priority: task.priority),
+                ],
+              ],
             ),
           ),
           const SizedBox(width: 8),
-
-          // Status badge
           GestureDetector(
             onTap: () {
-              if (isDemo) return;
-              if (entry.real == null) return;
-              final assignedTo = entry.real!.assignedTo;
-              if (assignedTo != _currentUser && assignedTo != _currentUid) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'You can only update your own tasks',
-                      style: GoogleFonts.sora(color: Colors.white),
-                    ),
-                    backgroundColor: AppColors.error,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
+              if (!_canEdit) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('You can only update your own tasks',
+                      style: GoogleFonts.sora(color: Colors.white)),
+                  backgroundColor: AppColors.error,
+                  duration: const Duration(seconds: 2),
+                ));
                 return;
               }
-              collab.cycleTaskStatus(entry.id, project.id);
+              collab.cycleTaskStatus(task.id, project.id);
             },
-            child: _StatusBadge(status: entry.status),
+            child: _StatusBadge(status: task.status),
           ),
           const SizedBox(width: 8),
-
-          // Delete
           GestureDetector(
             onTap: () {
-              if (isDemo) return;
-              if (entry.real == null) return;
-              final canDelete = entry.real!.assignedTo == _currentUser ||
-                  entry.real!.assignedTo == _currentUid ||
-                  project.ownerId == _currentUid;
-              if (!canDelete) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'You cannot delete this task',
-                      style: GoogleFonts.sora(color: Colors.white),
-                    ),
-                    backgroundColor: AppColors.error,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
+              if (!_canEdit) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('You cannot delete this task',
+                      style: GoogleFonts.sora(color: Colors.white)),
+                  backgroundColor: AppColors.error,
+                  duration: const Duration(seconds: 2),
+                ));
                 return;
               }
-              collab.deleteTask(entry.id, project.id);
+              collab.deleteTask(task.id, project.id);
             },
             child: Container(
               padding: const EdgeInsets.all(6),
@@ -277,15 +292,40 @@ class _TaskRow extends StatelessWidget {
                 color: AppColors.error.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Icon(
-                Icons.delete_outline_rounded,
-                color: AppColors.error,
-                size: 16,
-              ),
+              child: const Icon(Icons.delete_outline_rounded,
+                  color: AppColors.error, size: 16),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Priority chip ─────────────────────────────────────────────────────────────
+class _PriorityChip extends StatelessWidget {
+  final TaskPriority priority;
+  const _PriorityChip({required this.priority});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (priority) {
+      TaskPriority.high => ('HIGH', AppColors.error),
+      TaskPriority.low => ('LOW', AppColors.success),
+      TaskPriority.medium => ('MEDIUM', AppColors.inProgressOrange),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(label,
+          style: GoogleFonts.sora(
+              color: color,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5)),
     );
   }
 }
@@ -302,7 +342,6 @@ class _StatusBadge extends StatelessWidget {
       TaskStatus.inProgress => ('IN PROGRESS', AppColors.inProgressOrange),
       TaskStatus.done => ('DONE', AppColors.success),
     };
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -310,15 +349,12 @@ class _StatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withOpacity(0.35), width: 1),
       ),
-      child: Text(
-        label,
-        style: GoogleFonts.sora(
-          color: color,
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
-        ),
-      ),
+      child: Text(label,
+          style: GoogleFonts.sora(
+              color: color,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5)),
     );
   }
 }

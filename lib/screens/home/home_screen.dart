@@ -17,13 +17,14 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late Stream<List<ProjectModel>> _projectsStream;
+  late final Stream<List<ProjectModel>> _projectsStream;
 
   @override
   void initState() {
     super.initState();
     _projectsStream =
         context.read<CollaborationProvider>().projectsStream();
+    context.read<NotificationProvider>().listenToNotifications();
   }
 
   String get _firstName {
@@ -142,7 +143,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: StreamBuilder<List<ProjectModel>>(
                   stream: _projectsStream,
                   builder: (ctx, snap) {
-                    if (snap.connectionState == ConnectionState.waiting) {
+                    if (snap.connectionState == ConnectionState.waiting &&
+                        !snap.hasData) {
                       return const Center(
                           child: CircularProgressIndicator(
                               color: AppColors.primary));

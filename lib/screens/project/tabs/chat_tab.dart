@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -11,7 +13,6 @@ import '../../../core/theme.dart';
 import '../../../providers/app_settings_provider.dart';
 import '../../../providers/collaboration_provider.dart';
 
-// Keywords that trigger AI suggestion card
 const _aiKeywords = [
   'deadline', 'review', 'finalize', 'standup', 'wireframe',
   'sync', 'meeting', 'check', 'update', 'finish', 'complete',
@@ -30,13 +31,25 @@ class _ChatTabState extends State<ChatTab> {
   final _scrollCtrl = ScrollController();
   final _picker = ImagePicker();
 
-  // AI suggestion state
   String? _aiSuggestionText;
   bool _showAiCard = false;
 
-  // FIREBASE_DEMO_MODE
-  static const _currentUser = 'Ahmed';
-  static const _currentUid = 'demo_user';
+  late final Stream<List<MessageModel>> _messagesStream;
+
+  String get _currentUser {
+    final u = FirebaseAuth.instance.currentUser;
+    return u?.displayName ?? u?.email?.split('@').first ?? 'User';
+  }
+
+  String get _currentUid => FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _messagesStream = context
+        .read<CollaborationProvider>()
+        .messagesStream(widget.project.id);
+  }
 
   @override
   void dispose() {
@@ -45,7 +58,6 @@ class _ChatTabState extends State<ChatTab> {
     super.dispose();
   }
 
-  // ── Send text ──────────────────────────────────────────────────────────────
   void _sendText() {
     final text = _msgCtrl.text.trim();
     if (text.isEmpty) return;
@@ -56,15 +68,14 @@ class _ChatTabState extends State<ChatTab> {
           text: text,
         );
 
-    // Check AI keywords
     final lower = text.toLowerCase();
     final matched = _aiKeywords.firstWhere(
       (k) => lower.contains(k),
       orElse: () => '',
     );
     if (matched.isNotEmpty) {
-      // Extract a short suggestion from the message
-      final suggestion = text.length > 40 ? '${text.substring(0, 40)}...' : text;
+      final suggestion =
+          text.length > 40 ? '${text.substring(0, 40)}...' : text;
       setState(() {
         _aiSuggestionText = suggestion;
         _showAiCard = true;
@@ -87,7 +98,6 @@ class _ChatTabState extends State<ChatTab> {
     });
   }
 
-  // ── Camera bottom sheet ────────────────────────────────────────────────────
   void _showCameraSheet() {
     showModalBottomSheet(
       context: context,
@@ -144,26 +154,21 @@ class _ChatTabState extends State<ChatTab> {
     );
   }
 
-  // ── Scan → PDF ─────────────────────────────────────────────────────────────
   Future<void> _scanAndConvertPdf() async {
     final xfile = await _picker.pickImage(source: ImageSource.camera);
     if (xfile == null) return;
-
     try {
       final pdf = pw.Document();
       final imageBytes = await File(xfile.path).readAsBytes();
       final pdfImage = pw.MemoryImage(imageBytes);
-
       pdf.addPage(pw.Page(
         build: (ctx) => pw.Center(child: pw.Image(pdfImage)),
       ));
-
       final dir = await getTemporaryDirectory();
       final pdfPath =
           '${dir.path}/scan_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final pdfFile = File(pdfPath);
       await pdfFile.writeAsBytes(await pdf.save());
-
       if (!mounted) return;
       context.read<CollaborationProvider>().sendFileMessage(
             projectId: widget.project.id,
@@ -185,12 +190,10 @@ class _ChatTabState extends State<ChatTab> {
     }
   }
 
-  // ── Send as photo ──────────────────────────────────────────────────────────
   Future<void> _sendAsPhoto() async {
     final xfile = await _picker.pickImage(source: ImageSource.camera);
     if (xfile == null) return;
     if (!mounted) return;
-
     context.read<CollaborationProvider>().sendFileMessage(
           projectId: widget.project.id,
           sender: _currentUser,
@@ -201,14 +204,12 @@ class _ChatTabState extends State<ChatTab> {
     _scrollToBottom();
   }
 
-  // ── File picker ────────────────────────────────────────────────────────────
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles();
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
     if (file.path == null) return;
     if (!mounted) return;
-
     context.read<CollaborationProvider>().sendFileMessage(
           projectId: widget.project.id,
           sender: _currentUser,
@@ -219,7 +220,6 @@ class _ChatTabState extends State<ChatTab> {
     _scrollToBottom();
   }
 
-  // ── AI suggestion actions ──────────────────────────────────────────────────
   void _addToList() {
     if (_aiSuggestionText == null) return;
     context.read<CollaborationProvider>().addTaskFromSuggestion(
@@ -239,53 +239,57 @@ class _ChatTabState extends State<ChatTab> {
 
   @override
   Widget build(BuildContext context) {
-    final collab = context.watch<CollaborationProvider>();
-    final messages =
-        collab.messagesForProject(widget.project.id);
-
     return Column(
       children: [
-        // ── Messages list ────────────────────────────────────────────────
         Expanded(
-          child: ListView.builder(
-            controller: _scrollCtrl,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            itemCount: messages.length + (_showAiCard ? 1 : 0),
-            itemBuilder: (ctx, i) {
-              // Insert AI card after first message that triggered it
-              if (_showAiCard && i == messages.length) {
-                return _AiSuggestionCard(
-                  suggestion: _aiSuggestionText ?? '',
-                  onAddToList: _addToList,
-                  onIgnore: () => setState(() => _showAiCard = false),
-                );
+          child: StreamBuilder<List<MessageModel>>(
+            stream: _messagesStream,
+            builder: (ctx, snap) {
+              if (snap.connectionState == ConnectionState.waiting &&
+                  !snap.hasData) {
+                return const Center(
+                    child: CircularProgressIndicator(
+                        color: AppColors.primary));
               }
-
-              final msg = messages[i];
-
-              // Check if next item is AI card (insert before last msg)
-              if (_showAiCard &&
-                  i == messages.length - 1 &&
-                  messages.length > 1) {
-                return Column(
-                  children: [
-                    _MessageBubble(message: msg, currentUid: _currentUid),
-                    _AiSuggestionCard(
+              final messages = snap.data ?? [];
+              WidgetsBinding.instance
+                  .addPostFrameCallback((_) => _scrollToBottom());
+              return ListView.builder(
+                controller: _scrollCtrl,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                itemCount: messages.length + (_showAiCard ? 1 : 0),
+                itemBuilder: (ctx, i) {
+                  if (_showAiCard && i == messages.length) {
+                    return _AiSuggestionCard(
                       suggestion: _aiSuggestionText ?? '',
                       onAddToList: _addToList,
                       onIgnore: () => setState(() => _showAiCard = false),
-                    ),
-                  ],
-                );
-              }
-
-              return _MessageBubble(
-                  message: msg, currentUid: _currentUid);
+                    );
+                  }
+                  final msg = messages[i];
+                  if (_showAiCard &&
+                      i == messages.length - 1 &&
+                      messages.length > 1) {
+                    return Column(
+                      children: [
+                        _MessageBubble(
+                            message: msg, currentUid: _currentUid),
+                        _AiSuggestionCard(
+                          suggestion: _aiSuggestionText ?? '',
+                          onAddToList: _addToList,
+                          onIgnore: () =>
+                              setState(() => _showAiCard = false),
+                        ),
+                      ],
+                    );
+                  }
+                  return _MessageBubble(
+                      message: msg, currentUid: _currentUid);
+                },
+              );
             },
           ),
         ),
-
-        // ── Input bar ────────────────────────────────────────────────────
         _InputBar(
           controller: _msgCtrl,
           onSend: _sendText,
@@ -321,6 +325,29 @@ class _MessageBubble extends StatelessWidget {
       AppColors.accent,
     ];
     return colors[name.hashCode.abs() % colors.length];
+  }
+
+  void _openFullscreen(BuildContext context, String path) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+              backgroundColor: Colors.black,
+              iconTheme: const IconThemeData(color: Colors.white)),
+          body: Center(
+            child: InteractiveViewer(
+              child: Image.file(File(path),
+                  errorBuilder: (_, __, ___) => const Icon(
+                      Icons.broken_image,
+                      color: Colors.white,
+                      size: 64)),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -394,30 +421,46 @@ class _MessageBubble extends StatelessWidget {
             ),
             child: message.type == MessageType.image &&
                     message.filePath != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadii.sm),
-                    child: Image.file(
-                      File(message.filePath!),
-                      fit: BoxFit.cover,
+                ? GestureDetector(
+                    onTap: () => _openFullscreen(context, message.filePath!),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadii.sm),
+                      child: Image.file(
+                        File(message.filePath!),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                            Icons.broken_image,
+                            color: AppColors.textSecondary),
+                      ),
                     ),
                   )
                 : message.type == MessageType.file
-                    ? Row(
-                        children: [
-                          const Icon(Icons.insert_drive_file_outlined,
-                              color: AppColors.primary, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              message.fileName ?? message.text,
-                              style: GoogleFonts.sora(
-                                color: AppColors.primary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
+                    ? GestureDetector(
+                        onTap: () {
+                          if (message.filePath != null) {
+                            OpenFile.open(message.filePath!);
+                          }
+                        },
+                        child: Row(
+                          children: [
+                            const Icon(Icons.insert_drive_file_outlined,
+                                color: AppColors.primary, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                message.fileName ?? message.text,
+                                style: GoogleFonts.sora(
+                                  color: AppColors.primary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  decoration: TextDecoration.underline,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                            const Icon(Icons.open_in_new_rounded,
+                                color: AppColors.primary, size: 16),
+                          ],
+                        ),
                       )
                     : Text(
                         message.text,

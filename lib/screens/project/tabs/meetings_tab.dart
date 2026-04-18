@@ -1,13 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme.dart';
 import '../../../core/routes.dart';
-import '../../../providers/app_settings_provider.dart';
 import '../../../providers/collaboration_provider.dart';
-
-const _demoMembers = ['Ahmed', 'Lina', 'Sara', 'David'];
 
 class MeetingsTab extends StatefulWidget {
   final ProjectModel project;
@@ -18,34 +16,40 @@ class MeetingsTab extends StatefulWidget {
 }
 
 class _MeetingsTabState extends State<MeetingsTab> {
-  // Demo upcoming (mutable so we can add)
-  final List<_UpcomingEntry> _upcoming = [
-    _UpcomingEntry(
-      label: 'Monday, April 14',
-      time: '10:00 AM',
-      badge: 'In 3 days',
-      badgeColor: AppColors.primary,
-    ),
-    _UpcomingEntry(
-      label: 'Tuesday, April 15',
-      time: '2:30 PM',
-      badge: 'Tomorrow',
-      badgeColor: AppColors.inProgressOrange,
-    ),
-  ];
+  late final Stream<List<MeetingModel>> _meetingsStream;
+  Map<String, String> _memberNames = {};
 
-  static final _past = [
-    _PastEntry(label: 'Apr 5', duration: '38 min', participants: 3),
-    _PastEntry(label: 'Apr 2', duration: '1h 15min', participants: 5),
-    _PastEntry(label: 'Mar 28', duration: '45 min', participants: 1),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _meetingsStream = context
+        .read<CollaborationProvider>()
+        .meetingsStream(widget.project.id);
+    _loadMemberNames();
+  }
 
-  // ── Schedule dialog ──────────────────────────────────────────────────────
+  Future<void> _loadMemberNames() async {
+    final Map<String, String> result = {};
+    for (final uid in widget.project.members) {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      if (doc.exists) {
+        final d = doc.data() as Map<String, dynamic>;
+        result[uid] = d['name'] ?? d['email'] ?? uid;
+      } else {
+        result[uid] = uid;
+      }
+    }
+    if (mounted) setState(() => _memberNames = result);
+  }
+
   Future<void> _showScheduleDialog() async {
     final titleCtrl = TextEditingController();
     DateTime? pickedDate;
     TimeOfDay? pickedTime;
-    final selectedMembers = <String>{};
+    final selectedUids = <String>{};
 
     await showDialog(
       context: context,
@@ -54,33 +58,28 @@ class _MeetingsTabState extends State<MeetingsTab> {
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadii.md)),
-          title: Text(
-            'Schedule Meeting',
-            style: GoogleFonts.sora(
-              color: AppColors.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          title: Text('Schedule Meeting',
+              style: GoogleFonts.sora(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Title
                 _DlgLabel('Title'),
                 const SizedBox(height: 6),
                 _DlgField(controller: titleCtrl, hint: 'Meeting title...'),
                 const SizedBox(height: 14),
-
-                // Date picker
                 _DlgLabel('Date'),
                 const SizedBox(height: 6),
                 GestureDetector(
                   onTap: () async {
                     final d = await showDatePicker(
                       context: ctx,
-                      initialDate: DateTime.now().add(const Duration(days: 1)),
+                      initialDate:
+                          DateTime.now().add(const Duration(days: 1)),
                       firstDate: DateTime.now(),
                       lastDate: DateTime(2100),
                       builder: (c, child) => Theme(
@@ -104,8 +103,6 @@ class _MeetingsTabState extends State<MeetingsTab> {
                   ),
                 ),
                 const SizedBox(height: 14),
-
-                // Time picker
                 _DlgLabel('Time'),
                 const SizedBox(height: 6),
                 GestureDetector(
@@ -134,28 +131,22 @@ class _MeetingsTabState extends State<MeetingsTab> {
                   ),
                 ),
                 const SizedBox(height: 14),
-
-                // Members multi-select
                 _DlgLabel('Invite Members'),
                 const SizedBox(height: 8),
-                ..._demoMembers.map((m) => CheckboxListTile(
+                ..._memberNames.entries.map((e) => CheckboxListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
                       activeColor: AppColors.primary,
                       checkColor: Colors.white,
-                      title: Text(
-                        m,
-                        style: GoogleFonts.sora(
-                          color: AppColors.textPrimary,
-                          fontSize: 13,
-                        ),
-                      ),
-                      value: selectedMembers.contains(m),
+                      title: Text(e.value,
+                          style: GoogleFonts.sora(
+                              color: AppColors.textPrimary, fontSize: 13)),
+                      value: selectedUids.contains(e.key),
                       onChanged: (v) => setDlg(() {
                         if (v == true) {
-                          selectedMembers.add(m);
+                          selectedUids.add(e.key);
                         } else {
-                          selectedMembers.remove(m);
+                          selectedUids.remove(e.key);
                         }
                       }),
                     )),
@@ -166,36 +157,34 @@ class _MeetingsTabState extends State<MeetingsTab> {
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: Text('Cancel',
-                  style: GoogleFonts.sora(color: AppColors.textSecondary)),
+                  style:
+                      GoogleFonts.sora(color: AppColors.textSecondary)),
             ),
             ElevatedButton(
-              onPressed: () {
-                if (titleCtrl.text.trim().isEmpty || pickedDate == null) return;
-                final timeStr = pickedTime?.format(ctx) ?? '12:00 PM';
-                final dateStr = _formatDate(pickedDate!);
-                final badge = _badgeLabel(pickedDate!);
-                final badgeColor = _badgeColor(pickedDate!);
-
-                setState(() {
-                  _upcoming.add(_UpcomingEntry(
-                    label: dateStr,
-                    time: timeStr,
-                    badge: badge,
-                    badgeColor: badgeColor,
-                  ));
-                });
-
-                // Also save to provider
-                context.read<CollaborationProvider>().addMeeting(MeetingModel(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+              onPressed: () async {
+                if (titleCtrl.text.trim().isEmpty || pickedDate == null) {
+                  return;
+                }
+                final dt = pickedTime == null
+                    ? pickedDate!
+                    : DateTime(
+                        pickedDate!.year,
+                        pickedDate!.month,
+                        pickedDate!.day,
+                        pickedTime!.hour,
+                        pickedTime!.minute,
+                      );
+                await context
+                    .read<CollaborationProvider>()
+                    .addMeeting(MeetingModel(
+                      id: '',
                       projectId: widget.project.id,
                       title: titleCtrl.text.trim(),
-                      date: pickedDate!,
+                      date: dt,
                       link: '',
-                      participants: selectedMembers.toList(),
+                      participants: selectedUids.toList(),
                     ));
-
-                Navigator.pop(ctx);
+                if (ctx.mounted) Navigator.pop(ctx);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
@@ -212,9 +201,106 @@ class _MeetingsTabState extends State<MeetingsTab> {
     );
   }
 
-  static String _formatDate(DateTime d) {
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<MeetingModel>>(
+      stream: _meetingsStream,
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+          return const Center(
+              child: CircularProgressIndicator(color: AppColors.primary));
+        }
+
+        final now = DateTime.now();
+        final all = snap.data ?? [];
+        final upcoming =
+            all.where((m) => m.date.isAfter(now)).toList();
+        final past =
+            all.where((m) => !m.date.isAfter(now)).toList().reversed.toList();
+
+        return Stack(
+          children: [
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+              children: [
+                _SectionLabel('UPCOMING'),
+                const SizedBox(height: 12),
+                if (upcoming.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Text('No upcoming meetings',
+                        style: GoogleFonts.sora(
+                            color: AppColors.textSecondary, fontSize: 13)),
+                  )
+                else
+                  ...upcoming.map((m) => _UpcomingCard(
+                        meeting: m,
+                        onTap: () => Navigator.pushNamed(
+                          context,
+                          AppRoutes.meetingRoom,
+                          arguments: widget.project,
+                        ),
+                      )),
+                const SizedBox(height: 24),
+                _SectionLabel('PAST'),
+                const SizedBox(height: 12),
+                if (past.isEmpty)
+                  Text('No past meetings',
+                      style: GoogleFonts.sora(
+                          color: AppColors.textSecondary, fontSize: 13))
+                else
+                  ...past.map((m) => _PastRow(
+                        meeting: m,
+                        memberNames: _memberNames,
+                      )),
+              ],
+            ),
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: FloatingActionButton.extended(
+                heroTag: 'schedule_meeting',
+                onPressed: _showScheduleDialog,
+                backgroundColor: AppColors.primary,
+                icon: const Icon(Icons.add, color: Colors.white),
+                label: Text('Schedule Meeting',
+                    style: GoogleFonts.sora(
+                        color: Colors.white, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ── Upcoming card ─────────────────────────────────────────────────────────────
+class _UpcomingCard extends StatelessWidget {
+  final MeetingModel meeting;
+  final VoidCallback onTap;
+  const _UpcomingCard({required this.meeting, required this.onTap});
+
+  String _badge() {
+    final now = DateTime.now();
+    final diff =
+        meeting.date.difference(DateTime(now.year, now.month, now.day)).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Tomorrow';
+    return 'In $diff days';
+  }
+
+  Color _badgeColor() {
+    final now = DateTime.now();
+    final diff =
+        meeting.date.difference(DateTime(now.year, now.month, now.day)).inDays;
+    return diff <= 1 ? AppColors.inProgressOrange : AppColors.primary;
+  }
+
+  String _formatDate(DateTime d) {
     const days = [
-      'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+      'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+      'Friday', 'Saturday', 'Sunday'
     ];
     const months = [
       'January', 'February', 'March', 'April', 'May', 'June',
@@ -223,73 +309,12 @@ class _MeetingsTabState extends State<MeetingsTab> {
     return '${days[d.weekday - 1]}, ${months[d.month - 1]} ${d.day}';
   }
 
-  static String _badgeLabel(DateTime d) {
-    final now = DateTime.now();
-    final diff = d.difference(DateTime(now.year, now.month, now.day)).inDays;
-    if (diff == 0) return 'Today';
-    if (diff == 1) return 'Tomorrow';
-    return 'In $diff days';
+  String _formatTime(DateTime d) {
+    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final m = d.minute.toString().padLeft(2, '0');
+    final period = d.hour < 12 ? 'AM' : 'PM';
+    return '$h:$m $period';
   }
-
-  static Color _badgeColor(DateTime d) {
-    final now = DateTime.now();
-    final diff = d.difference(DateTime(now.year, now.month, now.day)).inDays;
-    if (diff <= 1) return AppColors.inProgressOrange;
-    return AppColors.primary;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-          children: [
-            // ── UPCOMING ────────────────────────────────────────────
-            _SectionLabel('UPCOMING'),
-            const SizedBox(height: 12),
-            ..._upcoming.map((m) => _UpcomingCard(
-                  entry: m,
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    AppRoutes.meetingRoom,
-                    arguments: widget.project,
-                  ),
-                )),
-            const SizedBox(height: 24),
-
-            // ── PAST ────────────────────────────────────────────────
-            _SectionLabel('PAST'),
-            const SizedBox(height: 12),
-            ..._past.map((p) => _PastRow(entry: p)),
-          ],
-        ),
-
-        // ── + Schedule Meeting FAB ───────────────────────────────────
-        Positioned(
-          bottom: 16,
-          right: 16,
-          child: FloatingActionButton.extended(
-            onPressed: _showScheduleDialog,
-            backgroundColor: AppColors.primary,
-            icon: const Icon(Icons.add, color: Colors.white),
-            label: Text(
-              'Schedule Meeting',
-              style: GoogleFonts.sora(
-                  color: Colors.white, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Upcoming card ─────────────────────────────────────────────────────────────
-class _UpcomingCard extends StatelessWidget {
-  final _UpcomingEntry entry;
-  final VoidCallback onTap;
-  const _UpcomingCard({required this.entry, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -297,7 +322,8 @@ class _UpcomingCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadii.md),
@@ -308,39 +334,32 @@ class _UpcomingCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    entry.label,
-                    style: GoogleFonts.sora(
-                      color: AppColors.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  Text(meeting.title,
+                      style: GoogleFonts.sora(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
                   Text(
-                    entry.time,
+                    '${_formatDate(meeting.date)} • ${_formatTime(meeting.date)}',
                     style: GoogleFonts.sora(
-                      color: AppColors.textSecondary,
-                      fontSize: 13,
-                    ),
+                        color: AppColors.textSecondary, fontSize: 12),
                   ),
                 ],
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
-                color: entry.badgeColor.withOpacity(0.18),
+                color: _badgeColor().withOpacity(0.18),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Text(
-                entry.badge,
-                style: GoogleFonts.sora(
-                  color: entry.badgeColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              child: Text(_badge(),
+                  style: GoogleFonts.sora(
+                      color: _badgeColor(),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
             ),
           ],
         ),
@@ -351,8 +370,9 @@ class _UpcomingCard extends StatelessWidget {
 
 // ── Past row ──────────────────────────────────────────────────────────────────
 class _PastRow extends StatelessWidget {
-  final _PastEntry entry;
-  const _PastRow({required this.entry});
+  final MeetingModel meeting;
+  final Map<String, String> memberNames;
+  const _PastRow({required this.meeting, required this.memberNames});
 
   Color _avatarColor(int i) {
     const colors = [
@@ -365,8 +385,19 @@ class _PastRow extends StatelessWidget {
     return colors[i % colors.length];
   }
 
+  String _formatShort(DateTime d) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[d.month - 1]} ${d.day}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final show = meeting.participants.length > 4
+        ? 4
+        : meeting.participants.length;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
@@ -375,37 +406,48 @@ class _PastRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(entry.label,
+                Text(meeting.title,
                     style: GoogleFonts.sora(
                         color: AppColors.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
-                Text(entry.duration,
+                Text(_formatShort(meeting.date),
                     style: GoogleFonts.sora(
                         color: AppColors.textSecondary, fontSize: 12)),
               ],
             ),
           ),
-          SizedBox(
-            width: entry.participants * 18.0 + 4,
-            height: 28,
-            child: Stack(
-              children: List.generate(entry.participants, (i) => Positioned(
-                    left: i * 18.0,
-                    child: Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _avatarColor(i),
-                        border: Border.all(
-                            color: AppColors.background, width: 1.5),
+          if (show > 0)
+            SizedBox(
+              width: show * 18.0 + 4,
+              height: 28,
+              child: Stack(
+                children: List.generate(show, (i) => Positioned(
+                      left: i * 18.0,
+                      child: Container(
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _avatarColor(i),
+                          border: Border.all(
+                              color: AppColors.background, width: 1.5),
+                        ),
+                        child: Center(
+                          child: Text(
+                            (memberNames[meeting.participants[i]] ?? '?')[0]
+                                .toUpperCase(),
+                            style: GoogleFonts.sora(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700),
+                          ),
+                        ),
                       ),
-                    ),
-                  )),
+                    )),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -418,15 +460,12 @@ class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.text);
 
   @override
-  Widget build(BuildContext context) => Text(
-        text,
-        style: GoogleFonts.sora(
+  Widget build(BuildContext context) => Text(text,
+      style: GoogleFonts.sora(
           color: AppColors.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.w700,
-          letterSpacing: 1.4,
-        ),
-      );
+          letterSpacing: 1.4));
 }
 
 // ── Dialog helpers ────────────────────────────────────────────────────────────
@@ -435,13 +474,11 @@ class _DlgLabel extends StatelessWidget {
   const _DlgLabel(this.text);
 
   @override
-  Widget build(BuildContext context) => Text(
-        text,
-        style: GoogleFonts.sora(
-            color: AppColors.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w600),
-      );
+  Widget build(BuildContext context) => Text(text,
+      style: GoogleFonts.sora(
+          color: AppColors.textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w600));
 }
 
 class _DlgField extends StatelessWidget {
@@ -492,24 +529,4 @@ class _DlgPickerBox extends StatelessWidget {
           ],
         ),
       );
-}
-
-// ── Data models ───────────────────────────────────────────────────────────────
-class _UpcomingEntry {
-  final String label, time, badge;
-  final Color badgeColor;
-  _UpcomingEntry(
-      {required this.label,
-      required this.time,
-      required this.badge,
-      required this.badgeColor});
-}
-
-class _PastEntry {
-  final String label, duration;
-  final int participants;
-  _PastEntry(
-      {required this.label,
-      required this.duration,
-      required this.participants});
 }

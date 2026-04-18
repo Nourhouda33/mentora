@@ -62,6 +62,7 @@ class _NewProjectScreenState extends State<NewProjectScreen> {
           description: _descCtrl.text.trim(),
           deadline: _deadline,
         );
+    if (!mounted) return;
     setState(() {
       _createdProject = project;
       _loading = false;

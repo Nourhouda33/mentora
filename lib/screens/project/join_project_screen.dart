@@ -38,15 +38,16 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
     _join(raw.trim());
   }
 
-  void _join([String? override]) {
+  Future<void> _join([String? override]) async {
     final input = override ?? _codeCtrl.text.trim();
     if (input.isEmpty) return;
 
     setState(() => _loading = true);
 
     final project =
-        context.read<CollaborationProvider>().joinProjectByCode(input);
+        await context.read<CollaborationProvider>().joinProjectByCode(input);
 
+    if (!mounted) return;
     setState(() => _loading = false);
 
     if (project != null) {

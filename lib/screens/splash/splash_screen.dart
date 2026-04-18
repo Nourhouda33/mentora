@@ -21,7 +21,8 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _fadeAnim;
   late Animation<double> _scaleAnim;
 
-  bool _isLoggedIn = false;
+  // Tri-state: null = still resolving, true = logged in, false = guest
+  bool? _isLoggedIn;
 
   @override
   void initState() {
@@ -38,9 +39,18 @@ class _SplashScreenState extends State<SplashScreen>
     );
     _animController.forward();
 
-    // Real Firebase auth check
-    final user = FirebaseAuth.instance.currentUser;
-    _isLoggedIn = user != null;
+    // Wait for Firebase to restore the persisted auth session before deciding
+    // the login state. currentUser can be null for a brief moment on cold start
+    // even when a valid session exists.
+    FirebaseAuth.instance.authStateChanges().first.then((user) {
+      if (mounted) {
+        setState(() => _isLoggedIn = user != null);
+        // If already authenticated, go straight to home
+        if (user != null) {
+          Navigator.pushReplacementNamed(context, AppRoutes.home);
+        }
+      }
+    });
   }
 
   @override
@@ -50,17 +60,21 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _onCreateProject() {
-    if (_isLoggedIn) {
+    final loggedIn = _isLoggedIn ?? false;
+    if (loggedIn) {
       Navigator.pushNamed(context, AppRoutes.newProject);
     } else {
-      Navigator.pushNamed(context, AppRoutes.register);
+      // Not authenticated → go to Signup page
+      Navigator.pushNamed(context, AppRoutes.login);
     }
   }
 
   void _onJoinProject() {
-    if (_isLoggedIn) {
+    final loggedIn = _isLoggedIn ?? false;
+    if (loggedIn) {
       Navigator.pushNamed(context, AppRoutes.joinProject);
     } else {
+      // Not authenticated → go to Signup page (consistent with Create Project)
       Navigator.pushNamed(context, AppRoutes.login);
     }
   }

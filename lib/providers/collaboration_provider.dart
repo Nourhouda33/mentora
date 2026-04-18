@@ -19,6 +19,7 @@ class ProjectModel {
   final DateTime? deadline;
   final String ownerId;
   final List<String> members;
+  final DateTime? createdAt;
 
   ProjectModel({
     required this.id,
@@ -29,6 +30,7 @@ class ProjectModel {
     this.deadline,
     this.ownerId = '',
     this.members = const [],
+    this.createdAt,
   });
 
   factory ProjectModel.fromDoc(DocumentSnapshot doc) {
@@ -42,6 +44,7 @@ class ProjectModel {
       deadline: (d['deadline'] as Timestamp?)?.toDate(),
       ownerId: d['ownerId'] ?? '',
       members: List<String>.from(d['members'] ?? []),
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -264,15 +267,43 @@ class CollaborationProvider extends ChangeNotifier {
 
   // ── Load projects for current user ────────────────────────────────────────
   Stream<List<ProjectModel>> projectsStream() {
-    return _db
-        .collection('projects')
-        .where('members', arrayContains: _uid)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snap) {
-      _projects = snap.docs.map((d) => ProjectModel.fromDoc(d)).toList();
-      notifyListeners();
-      return _projects;
+    List<ProjectModel> _sorted(QuerySnapshot snap) {
+      return snap.docs
+          .map((d) => ProjectModel.fromDoc(d))
+          .toList()
+        ..sort((a, b) {
+          final at = a.createdAt;
+          final bt = b.createdAt;
+          if (at == null && bt == null) return 0;
+          if (at == null) return 1;
+          if (bt == null) return -1;
+          return bt.compareTo(at);
+        });
+    }
+
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (uid.isNotEmpty) {
+      return _db
+          .collection('projects')
+          .where('members', arrayContains: uid)
+          .snapshots()
+          .map((snap) {
+        _projects = _sorted(snap);
+        notifyListeners();
+        return _projects;
+      });
+    }
+    return FirebaseAuth.instance.authStateChanges().asyncExpand((user) {
+      if (user == null) return Stream.value(<ProjectModel>[]);
+      return _db
+          .collection('projects')
+          .where('members', arrayContains: user.uid)
+          .snapshots()
+          .map((snap) {
+        _projects = _sorted(snap);
+        notifyListeners();
+        return _projects;
+      });
     });
   }
 
@@ -300,11 +331,12 @@ class CollaborationProvider extends ChangeNotifier {
         .collection('projects')
         .doc(projectId)
         .collection('tasks')
-        .orderBy('createdAt', descending: false)
         .snapshots()
         .map((snap) {
-      final list =
-          snap.docs.map((d) => TaskModel.fromDoc(d, projectId)).toList();
+      final list = snap.docs
+          .map((d) => TaskModel.fromDoc(d, projectId))
+          .toList()
+        ..sort((a, b) => a.title.compareTo(b.title));
       _tasks[projectId] = list;
       notifyListeners();
       return list;
@@ -334,11 +366,12 @@ class CollaborationProvider extends ChangeNotifier {
         .collection('projects')
         .doc(projectId)
         .collection('meetings')
-        .orderBy('date')
         .snapshots()
         .map((snap) {
-      final list =
-          snap.docs.map((d) => MeetingModel.fromDoc(d, projectId)).toList();
+      final list = snap.docs
+          .map((d) => MeetingModel.fromDoc(d, projectId))
+          .toList()
+        ..sort((a, b) => a.date.compareTo(b.date));
       _meetings[projectId] = list;
       notifyListeners();
       return list;
@@ -374,6 +407,10 @@ class CollaborationProvider extends ChangeNotifier {
       members: [_uid],
     );
     await ref.set(project.toMap());
+    notifProvider?.add(
+      title: '🚀 Project created',
+      message: '"$name" is ready. Share code $code with your team.',
+    );
     return project;
   }
 
@@ -487,16 +524,44 @@ class CollaborationProvider extends ChangeNotifier {
         .doc();
     await ref.set(task.toMap());
 
-    // Notification
     final projDoc =
         await _db.collection('projects').doc(task.projectId).get();
-    if (projDoc.exists) {
-      final name = (projDoc.data() as Map)['name'] ?? '';
-      notifProvider?.add(
-        title: '✅ New task in $name',
-        message:
-            '"${task.title}" assigned to ${task.assignedTo.isEmpty ? 'someone' : task.assignedTo}',
-      );
+    if (!projDoc.exists) return;
+    final projectName = (projDoc.data() as Map)['name'] ?? '';
+    final creatorName = _displayName;
+
+    // Notify current user's bell
+    notifProvider?.add(
+      title: '✅ Task created in $projectName',
+      message: '"${task.title}" assigned to ${task.assignedTo.isEmpty ? 'someone' : task.assignedTo}',
+    );
+
+    // If assigned to someone else → write directly to their Firestore notifications
+    final assignedUid = task.assignedToUid;
+    if (assignedUid.isNotEmpty && assignedUid != _uid) {
+      final notifRef = _db
+          .collection('users')
+          .doc(assignedUid)
+          .collection('notifications')
+          .doc();
+      await notifRef.set({
+        'title': '📋 New task assigned to you',
+        'message': '"${task.title}" in $projectName — assigned by $creatorName',
+        'date': FieldValue.serverTimestamp(),
+        'isRead': false,
+      });
+      // Keep max 5 for that user too
+      final allNotifs = await _db
+          .collection('users')
+          .doc(assignedUid)
+          .collection('notifications')
+          .orderBy('date', descending: true)
+          .get();
+      if (allNotifs.docs.length > 5) {
+        for (final doc in allNotifs.docs.skip(5)) {
+          await doc.reference.delete();
+        }
+      }
     }
   }
 
