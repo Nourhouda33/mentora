@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "432100276747",
+    "project_id": "mentora-83e30",
+    "storage_bucket": "mentora-83e30.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:432100276747:android:968572202b2d7bcaa8e50e",
+        "android_client_info": {
+          "package_name": "com.iit.mentora"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "432100276747-nenoekofl1lf483niemn5i5eu7t9446u.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.iit.mentora",
+            "certificate_hash": "0519c281f2a295e1a5dd880871aa20dd897d41d6"
+          }
+        },
+        {
+          "client_id": "432100276747-8qn7k0c3s54adgo30dfobtrslbrvek21.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2esP7iF6qr53veSpZrIZGtn9qMQ-GSA8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "432100276747-8qn7k0c3s54adgo30dfobtrslbrvek21.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

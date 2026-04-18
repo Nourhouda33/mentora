@@ -1,0 +1,236 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/theme.dart';
+import '../../core/routes.dart';
+import '../../providers/app_settings_provider.dart';
+import '../../widgets/mentora_logo.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  bool _obscure = true;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    final email = _emailCtrl.text.trim();
+    final pass = _passCtrl.text.trim();
+    if (email.isEmpty || pass.isEmpty) {
+      setState(() => _error = 'Please fill all fields');
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: pass,
+      );
+      if (mounted) Navigator.pushReplacementNamed(context, AppRoutes.home);
+    } on FirebaseAuthException catch (e) {
+      setState(() => _error = _authError(e.code));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty) {
+      setState(() => _error = 'Enter your email first');
+      return;
+    }
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Reset email sent to $email',
+              style: GoogleFonts.sora(color: Colors.white)),
+          backgroundColor: AppColors.success,
+        ));
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() => _error = _authError(e.code));
+    }
+  }
+
+  String _authError(String code) => switch (code) {
+        'user-not-found' => 'No account found with this email',
+        'wrong-password' => 'Incorrect password',
+        'invalid-email' => 'Invalid email address',
+        'user-disabled' => 'This account has been disabled',
+        'too-many-requests' => 'Too many attempts. Try again later',
+        _ => 'Authentication failed. Please try again',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.watch<AppSettingsProvider>();
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 40),
+              const Center(child: MentoraLogo(size: 80, withGlow: true)),
+              const SizedBox(height: 32),
+              Text(s.t('login'),
+                  style: GoogleFonts.sora(
+                      color: AppColors.textPrimary,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              Text(s.t('splash_subtitle'),
+                  style: GoogleFonts.sora(
+                      color: AppColors.textSecondary, fontSize: 13)),
+              const SizedBox(height: 32),
+              _buildField(s.t('email'), _emailCtrl,
+                  icon: Icons.email_outlined,
+                  keyboardType: TextInputType.emailAddress),
+              const SizedBox(height: 16),
+              _buildField(s.t('password'), _passCtrl,
+                  icon: Icons.lock_outline,
+                  obscure: _obscure,
+                  toggle: () => setState(() => _obscure = !_obscure)),
+              if (_error != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline,
+                          color: AppColors.error, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(_error!,
+                            style: GoogleFonts.sora(
+                                color: AppColors.error, fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _forgotPassword,
+                  child: Text(s.t('forgot_password'),
+                      style: GoogleFonts.sora(
+                          color: AppColors.primary, fontSize: 13)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : _login,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadii.md)),
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                      : Text(s.t('sign_in'),
+                          style: GoogleFonts.sora(
+                              fontSize: 16, fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Center(
+                child: GestureDetector(
+                  onTap: () =>
+                      Navigator.pushNamed(context, AppRoutes.register),
+                  child: RichText(
+                    text: TextSpan(
+                      style: GoogleFonts.sora(
+                          fontSize: 13, color: AppColors.textSecondary),
+                      children: [
+                        TextSpan(text: s.t('no_account')),
+                        TextSpan(
+                          text: ' ${s.t('sign_up')}',
+                          style: GoogleFonts.sora(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildField(
+    String hint,
+    TextEditingController ctrl, {
+    required IconData icon,
+    bool obscure = false,
+    VoidCallback? toggle,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+      ),
+      child: TextField(
+        controller: ctrl,
+        obscureText: obscure,
+        keyboardType: keyboardType,
+        style: GoogleFonts.sora(color: AppColors.textPrimary),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: GoogleFonts.sora(color: AppColors.textSecondary),
+          prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
+          suffixIcon: toggle != null
+              ? IconButton(
+                  icon: Icon(
+                      obscure ? Icons.visibility_off : Icons.visibility,
+                      color: AppColors.textSecondary,
+                      size: 20),
+                  onPressed: toggle)
+              : null,
+          border: InputBorder.none,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
+      ),
+    );
+  }
+}
