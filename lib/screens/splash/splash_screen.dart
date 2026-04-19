@@ -81,10 +81,11 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final mt = context.mt;
     final s = context.watch<AppSettingsProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: mt.background,
       body: SafeArea(
         child: Stack(
           children: [
@@ -118,7 +119,7 @@ class _SplashScreenState extends State<SplashScreen>
                             const SizedBox(height: 28),
                             Text(s.t('app_name'),
                                 style: GoogleFonts.sora(
-                                    color: AppColors.textPrimary,
+                                    color: mt.textPrimary,
                                     fontSize: 30,
                                     fontWeight: FontWeight.w700,
                                     letterSpacing: 0.4)),
@@ -126,7 +127,7 @@ class _SplashScreenState extends State<SplashScreen>
                             Text(s.t('splash_subtitle'),
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.sora(
-                                    color: AppColors.textSecondary,
+                                    color: mt.textSecondary,
                                     fontSize: 15,
                                     height: 1.5)),
                           ],
@@ -165,9 +166,9 @@ class _SplashScreenState extends State<SplashScreen>
                         child: OutlinedButton(
                           onPressed: _onJoinProject,
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.textPrimary,
-                            side: const BorderSide(
-                                color: AppColors.textPrimary, width: 1.5),
+                            foregroundColor: mt.textPrimary,
+                            side: BorderSide(
+                                color: mt.textPrimary, width: 1.5),
                             shape: RoundedRectangleBorder(
                                 borderRadius:
                                     BorderRadius.circular(AppRadii.md)),
@@ -186,7 +187,7 @@ class _SplashScreenState extends State<SplashScreen>
                           text: TextSpan(
                             style: GoogleFonts.sora(
                                 fontSize: 13,
-                                color: AppColors.textSecondary),
+                                color: mt.textSecondary),
                             children: [
                               TextSpan(text: s.t('already_account')),
                               TextSpan(

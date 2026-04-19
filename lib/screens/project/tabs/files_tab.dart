@@ -161,8 +161,7 @@ class _RealPhotoGrid extends StatelessWidget {
               Image.file(File(files[i].path), fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
                       color: AppColors.surface,
-                      child: const Icon(Icons.broken_image,
-                          color: AppColors.textSecondary))),
+                      child: Icon(Icons.broken_image, color: context.mt.textSecondary))),
               if (isLast)
                 Container(
                   color: Colors.black54,
@@ -286,7 +285,7 @@ class _FileRow extends StatelessWidget {
                 children: [
                   Text(name,
                       style: GoogleFonts.sora(
-                          color: AppColors.textPrimary,
+                          color: context.mt.textPrimary,
                           fontSize: 13,
                           fontWeight: FontWeight.w600),
                       maxLines: 1,
@@ -294,12 +293,11 @@ class _FileRow extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(meta,
                       style: GoogleFonts.sora(
-                          color: AppColors.textSecondary, fontSize: 11)),
+                          color: context.mt.textSecondary, fontSize: 11)),
                 ],
               ),
             ),
-            const Icon(Icons.open_in_new_rounded,
-                color: AppColors.textSecondary, size: 18),
+            Icon(Icons.open_in_new_rounded, color: context.mt.textSecondary, size: 18),
           ],
         ),
       ),
@@ -317,7 +315,7 @@ class _EmptyHint extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Text(label,
             style: GoogleFonts.sora(
-                color: AppColors.textSecondary, fontSize: 13)),
+                color: context.mt.textSecondary, fontSize: 13)),
       );
 }
 
@@ -330,7 +328,7 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) => Text(
         text,
         style: GoogleFonts.sora(
-          color: AppColors.textSecondary,
+          color: context.mt.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.4,

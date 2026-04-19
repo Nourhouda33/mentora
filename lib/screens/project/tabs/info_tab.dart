@@ -15,7 +15,7 @@ class InfoTab extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('$label copied',
           style: GoogleFonts.sora(color: Colors.white)),
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.mt.surface,
       duration: const Duration(seconds: 2),
     ));
   }
@@ -39,14 +39,14 @@ class InfoTab extends StatelessWidget {
                 children: [
                   Text('Project QR Code',
                       style: GoogleFonts.sora(
-                          color: AppColors.textPrimary,
+                          color: context.mt.textPrimary,
                           fontSize: 15,
                           fontWeight: FontWeight.w600)),
                   const Spacer(),
                   Container(
                     width: 8,
                     height: 8,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                         color: AppColors.primary, shape: BoxShape.circle),
                   ),
                 ],
@@ -77,7 +77,7 @@ class InfoTab extends StatelessWidget {
               Text(
                 'Scan to join this project',
                 style: GoogleFonts.sora(
-                    color: AppColors.textSecondary, fontSize: 12),
+                    color: context.mt.textSecondary, fontSize: 12),
               ),
             ],
           ),
@@ -89,7 +89,7 @@ class InfoTab extends StatelessWidget {
           label: 'INVITE CODE',
           value: project.inviteCode,
           valueStyle: GoogleFonts.sora(
-            color: AppColors.textPrimary,
+            color: context.mt.textPrimary,
             fontSize: 26,
             fontWeight: FontWeight.w700,
             letterSpacing: 6,
@@ -126,7 +126,7 @@ class InfoTab extends StatelessWidget {
             ),
             child: Text(project.description,
                 style: GoogleFonts.sora(
-                    color: AppColors.textPrimary,
+                    color: context.mt.textPrimary,
                     fontSize: 13,
                     height: 1.6)),
           ),
@@ -152,7 +152,7 @@ class InfoTab extends StatelessWidget {
                   '${project.deadline!.month.toString().padLeft(2, '0')}/'
                   '${project.deadline!.year}',
                   style: GoogleFonts.sora(
-                      color: AppColors.textPrimary,
+                      color: context.mt.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w600),
                 ),
@@ -194,11 +194,11 @@ class _InfoRow extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: AppColors.textSecondary, size: 14),
+              Icon(icon, color: context.mt.textSecondary, size: 14),
               const SizedBox(width: 6),
               Text(label,
                   style: GoogleFonts.sora(
-                      color: AppColors.textSecondary,
+                      color: context.mt.textSecondary,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.2)),
@@ -243,7 +243,7 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(text,
       style: GoogleFonts.sora(
-          color: AppColors.textSecondary,
+          color: context.mt.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.4));

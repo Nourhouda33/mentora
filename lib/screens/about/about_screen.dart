@@ -14,19 +14,19 @@ class AboutScreen extends StatelessWidget {
     final s = context.watch<AppSettingsProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.mt.background,
       appBar: AppBar(
         title: Text(
           s.t('about_title'),
           style: GoogleFonts.sora(
-            color: AppColors.textPrimary,
+            color: context.mt.textPrimary,
             fontSize: 17,
             fontWeight: FontWeight.w600,
           ),
         ),
-        backgroundColor: AppColors.background,
+        backgroundColor: context.mt.background,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        iconTheme: IconThemeData(color: context.mt.textPrimary),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
@@ -42,7 +42,7 @@ class AboutScreen extends StatelessWidget {
               child: Text(
                 s.t('app_name'),
                 style: GoogleFonts.sora(
-                  color: AppColors.textPrimary,
+                  color: context.mt.textPrimary,
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
                 ),
@@ -53,7 +53,7 @@ class AboutScreen extends StatelessWidget {
               child: Text(
                 'Version 1.0.0',
                 style: GoogleFonts.sora(
-                  color: AppColors.textSecondary,
+                  color: context.mt.textSecondary,
                   fontSize: 13,
                 ),
               ),
@@ -71,7 +71,7 @@ class AboutScreen extends StatelessWidget {
               child: RichText(
                 text: TextSpan(
                   style: GoogleFonts.sora(
-                    color: AppColors.textSecondary,
+                    color: context.mt.textSecondary,
                     fontSize: 13.5,
                     height: 1.65,
                   ),
@@ -105,7 +105,7 @@ class AboutScreen extends StatelessWidget {
             Text(
               'AI SERVICES USED',
               style: GoogleFonts.sora(
-                color: AppColors.textSecondary,
+                color: context.mt.textSecondary,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.4,
@@ -203,12 +203,12 @@ class _ServiceCard extends StatelessWidget {
                   ? Text(
                       iconLabel!,
                       style: GoogleFonts.sora(
-                        color: AppColors.textPrimary,
+                        color: context.mt.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ),
                     )
-                  : Icon(icon, color: AppColors.textPrimary, size: 22),
+                  : Icon(icon, color: context.mt.textPrimary, size: 22),
             ),
           ),
           const SizedBox(width: 14),
@@ -221,7 +221,7 @@ class _ServiceCard extends StatelessWidget {
                 Text(
                   title,
                   style: GoogleFonts.sora(
-                    color: AppColors.textPrimary,
+                    color: context.mt.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -230,7 +230,7 @@ class _ServiceCard extends StatelessWidget {
                 Text(
                   subtitle,
                   style: GoogleFonts.sora(
-                    color: AppColors.textSecondary,
+                    color: context.mt.textSecondary,
                     fontSize: 12,
                     height: 1.5,
                   ),

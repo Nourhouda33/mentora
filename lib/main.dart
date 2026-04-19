@@ -51,7 +51,7 @@ class MentoraApp extends StatelessWidget {
           return MaterialApp(
             title: 'Mentora',
             debugShowCheckedModeBanner: false,
-            theme: AppTheme.dark(),
+            theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),
             themeMode: settings.darkMode ? ThemeMode.dark : ThemeMode.light,
             localizationsDelegates: const [

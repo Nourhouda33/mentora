@@ -76,18 +76,18 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
     final s = context.watch<AppSettingsProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.mt.background,
       appBar: AppBar(
         title: Text(
           s.t('join_project'),
           style: GoogleFonts.sora(
-            color: AppColors.textPrimary,
+            color: context.mt.textPrimary,
             fontSize: 17,
             fontWeight: FontWeight.w600,
           ),
         ),
-        backgroundColor: AppColors.background,
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        backgroundColor: context.mt.background,
+        iconTheme: IconThemeData(color: context.mt.textPrimary),
         elevation: 0,
       ),
       body: Padding(
@@ -112,7 +112,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
             Text(
               'OR ENTER CODE MANUALLY',
               style: GoogleFonts.sora(
-                color: AppColors.textSecondary,
+                color: context.mt.textSecondary,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.4,
@@ -132,7 +132,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                 maxLength: 6,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.sora(
-                  color: AppColors.textPrimary,
+                  color: context.mt.textPrimary,
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 6,
@@ -140,7 +140,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                 decoration: InputDecoration(
                   hintText: 'ENTER INVITATION CODE',
                   hintStyle: GoogleFonts.sora(
-                    color: AppColors.textSecondary,
+                    color: context.mt.textSecondary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1.2,
@@ -205,7 +205,7 @@ class _JoinProjectScreenState extends State<JoinProjectScreen> {
                   Text(
                     'POWERED BY ML KIT BARCODE SCANNING',
                     style: GoogleFonts.sora(
-                      color: AppColors.textSecondary,
+                      color: context.mt.textSecondary,
                       fontSize: 9,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.8,

@@ -628,6 +628,188 @@ class CollaborationProvider extends ChangeNotifier {
         .add(meeting.toMap());
   }
 
+  // ── Start live meeting (real-time) ─────────────────────────────────────────
+  Future<void> startLiveMeeting({
+    required String projectId,
+    required String hostName,
+    required String meetingTitle,
+  }) async {
+    final projDoc = await _db.collection('projects').doc(projectId).get();
+    if (!projDoc.exists) return;
+    final data = projDoc.data() as Map<String, dynamic>;
+    final members = List<String>.from(data['members'] ?? []);
+    final projectName = data['name'] ?? '';
+
+    await _db.collection('projects').doc(projectId).update({
+      'liveMeeting': {
+        'hostUid': _uid,
+        'hostName': hostName,
+        'title': meetingTitle,
+        'startedAt': FieldValue.serverTimestamp(),
+        'active': true,
+        'participants': {
+          _uid: {
+            'name': hostName,
+            'joinedAt': FieldValue.serverTimestamp(),
+            'micOn': true,
+            'camOn': true,
+          }
+        },
+      }
+    });
+
+    for (final uid in members) {
+      if (uid == _uid) continue;
+      final notifRef = _db
+          .collection('users')
+          .doc(uid)
+          .collection('notifications')
+          .doc();
+      await notifRef.set({
+        'title': '📹 Live meeting started in $projectName',
+        'message': '$hostName started "$meetingTitle" — tap to join',
+        'date': FieldValue.serverTimestamp(),
+        'isRead': false,
+        'projectId': projectId,
+        'type': 'live_meeting',
+      });
+      final all = await _db
+          .collection('users')
+          .doc(uid)
+          .collection('notifications')
+          .orderBy('date', descending: true)
+          .get();
+      if (all.docs.length > 5) {
+        for (final doc in all.docs.skip(5)) {
+          await doc.reference.delete();
+        }
+      }
+    }
+  }
+
+  // ── Join live meeting ──────────────────────────────────────────────────────
+  Future<void> joinLiveMeeting({
+    required String projectId,
+    required String participantName,
+    required bool micOn,
+    required bool camOn,
+  }) async {
+    await _db.collection('projects').doc(projectId).update({
+      'liveMeeting.participants.$_uid': {
+        'name': participantName,
+        'joinedAt': FieldValue.serverTimestamp(),
+        'micOn': micOn,
+        'camOn': camOn,
+      }
+    });
+  }
+
+  // ── Update participant state (mic/cam) ─────────────────────────────────────
+  Future<void> updateParticipantState({
+    required String projectId,
+    required bool micOn,
+    required bool camOn,
+  }) async {
+    await _db.collection('projects').doc(projectId).update({
+      'liveMeeting.participants.$_uid.micOn': micOn,
+      'liveMeeting.participants.$_uid.camOn': camOn,
+    });
+  }
+
+  // ── Leave live meeting ─────────────────────────────────────────────────────
+  Future<void> leaveLiveMeeting(String projectId) async {
+    await _db.collection('projects').doc(projectId).update({
+      'liveMeeting.participants.$_uid': FieldValue.delete(),
+    });
+  }
+
+  // ── End live meeting ───────────────────────────────────────────────────────
+  Future<void> endLiveMeeting(String projectId) async {
+    final doc = await _db.collection('projects').doc(projectId).get();
+    if (!doc.exists) return;
+    final data = doc.data() as Map<String, dynamic>;
+    final live = data['liveMeeting'] as Map<String, dynamic>?;
+    if (live == null) return;
+
+    final participants = (live['participants'] as Map<String, dynamic>? ?? {});
+    final startedAt = (live['startedAt'] as Timestamp?)?.toDate();
+    final durationMinutes = startedAt != null
+        ? DateTime.now().difference(startedAt).inMinutes
+        : 0;
+
+    await _db
+        .collection('projects')
+        .doc(projectId)
+        .collection('meetings')
+        .add({
+      'title': live['title'] ?? 'Live Meeting',
+      'date': live['startedAt'] ?? FieldValue.serverTimestamp(),
+      'link': '',
+      'durationMinutes': durationMinutes,
+      'participants': participants.keys.toList(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    await _db.collection('projects').doc(projectId).update({
+      'liveMeeting': FieldValue.delete(),
+    });
+  }
+
+  // ── Stream live meeting state ──────────────────────────────────────────────
+  Stream<Map<String, dynamic>?> liveMeetingStream(String projectId) {
+    return _db
+        .collection('projects')
+        .doc(projectId)
+        .snapshots()
+        .map((doc) {
+      if (!doc.exists) return null;
+      final d = doc.data() as Map<String, dynamic>;
+      return d['liveMeeting'] as Map<String, dynamic>?;
+    });
+  }
+
+  // ── Meeting chat stream ────────────────────────────────────────────────────
+  Stream<List<Map<String, dynamic>>> meetingChatStream(String projectId) {
+    return _db
+        .collection('projects')
+        .doc(projectId)
+        .collection('meetingChat')
+        .orderBy('timestamp')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => {'id': d.id, ...d.data()})
+            .toList());
+  }
+
+  Future<void> sendMeetingChatMessage({
+    required String projectId,
+    required String text,
+  }) async {
+    await _db
+        .collection('projects')
+        .doc(projectId)
+        .collection('meetingChat')
+        .add({
+      'senderUid': _uid,
+      'senderName': _displayName,
+      'text': text,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> clearMeetingChat(String projectId) async {
+    final snap = await _db
+        .collection('projects')
+        .doc(projectId)
+        .collection('meetingChat')
+        .get();
+    final batch = _db.batch();
+    for (final doc in snap.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+  }
+
   // ── Send calendar message ──────────────────────────────────────────────────
   Future<void> sendCalendarMessage({
     required String projectId,

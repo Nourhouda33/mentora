@@ -47,7 +47,7 @@ class _TasksTabState extends State<TasksTab> {
                 child: Text(
                   'No tasks yet. Add the first one!',
                   style: GoogleFonts.sora(
-                      color: AppColors.textSecondary, fontSize: 14),
+                      color: context.mt.textSecondary, fontSize: 14),
                 ),
               ),
               _AddTaskFab(project: widget.project),
@@ -167,7 +167,7 @@ class _MemberGroup extends StatelessWidget {
               Text(
                 memberName,
                 style: GoogleFonts.sora(
-                  color: AppColors.textPrimary,
+                  color: context.mt.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
@@ -183,7 +183,7 @@ class _MemberGroup extends StatelessWidget {
                 child: Text(
                   '${tasks.length}',
                   style: GoogleFonts.sora(
-                      color: AppColors.textSecondary,
+                      color: context.mt.textSecondary,
                       fontSize: 11,
                       fontWeight: FontWeight.w600),
                 ),
@@ -241,7 +241,7 @@ class _TaskRow extends StatelessWidget {
                 Text(
                   task.title,
                   style: GoogleFonts.sora(
-                    color: AppColors.textPrimary,
+                    color: context.mt.textPrimary,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                     decoration: task.status == TaskStatus.done

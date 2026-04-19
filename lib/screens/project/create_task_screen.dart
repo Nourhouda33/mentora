@@ -95,11 +95,11 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.mt.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: context.mt.background,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        iconTheme: IconThemeData(color: context.mt.textPrimary),
         title: Text(
           'Create Task',
           style: GoogleFonts.sora(
@@ -116,7 +116,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                 Container(
                   width: 7,
                   height: 7,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.primary,
                     shape: BoxShape.circle,
                   ),
@@ -154,13 +154,13 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                         TextField(
                           controller: _titleCtrl,
                           style: GoogleFonts.sora(
-                              color: AppColors.textPrimary, fontSize: 14),
+                              color: context.mt.textPrimary, fontSize: 14),
                           decoration: InputDecoration(
                             hintText: 'e.g., Finalize Q4 Design System',
                             hintStyle: GoogleFonts.sora(
-                                color: AppColors.textSecondary, fontSize: 14),
+                                color: context.mt.textSecondary, fontSize: 14),
                             filled: true,
-                            fillColor: AppColors.background,
+                            fillColor: context.mt.background,
                             border: OutlineInputBorder(
                               borderRadius:
                                   BorderRadius.circular(AppRadii.sm),
@@ -218,8 +218,8 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                         const SizedBox(height: 8),
                         _PriorityOption(
                           label: 'Medium',
-                          iconWidget: const Icon(Icons.menu_rounded,
-                              color: AppColors.textSecondary, size: 18),
+                          iconWidget: Icon(Icons.menu_rounded,
+                              color: context.mt.textSecondary, size: 18),
                           color: AppColors.inProgressOrange,
                           selected: _priority == TaskPriority.medium,
                           onTap: () =>
@@ -228,8 +228,8 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                         const SizedBox(height: 8),
                         _PriorityOption(
                           label: 'Low',
-                          iconWidget: const Icon(Icons.low_priority_rounded,
-                              color: AppColors.textSecondary, size: 18),
+                          iconWidget: Icon(Icons.low_priority_rounded,
+                              color: context.mt.textSecondary, size: 18),
                           color: AppColors.success,
                           selected: _priority == TaskPriority.low,
                           onTap: () =>
@@ -321,7 +321,7 @@ class _AssigneeDropdown extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: context.mt.background,
         borderRadius: BorderRadius.circular(AppRadii.sm),
       ),
       child: DropdownButtonHideUnderline(
@@ -329,8 +329,8 @@ class _AssigneeDropdown extends StatelessWidget {
           value: selectedUid,
           isExpanded: true,
           dropdownColor: AppColors.surface,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded,
-              color: AppColors.textSecondary),
+          icon: Icon(Icons.keyboard_arrow_down_rounded,
+              color: context.mt.textSecondary),
           onChanged: onChanged,
           selectedItemBuilder: (ctx) => uids.map((uid) {
             final name = members[uid] ?? uid;
@@ -350,7 +350,7 @@ class _AssigneeDropdown extends StatelessWidget {
               const SizedBox(width: 10),
               Text(name,
                   style: GoogleFonts.sora(
-                      color: AppColors.textPrimary,
+                      color: context.mt.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w500)),
             ]);
@@ -375,7 +375,7 @@ class _AssigneeDropdown extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(name,
                     style: GoogleFonts.sora(
-                        color: AppColors.textPrimary, fontSize: 14)),
+                        color: context.mt.textPrimary, fontSize: 14)),
               ]),
             );
           }).toList(),
@@ -455,7 +455,7 @@ class _StatusToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: context.mt.background,
         borderRadius: BorderRadius.circular(AppRadii.sm),
       ),
       child: Row(
@@ -538,7 +538,7 @@ class _Label extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(text,
       style: GoogleFonts.sora(
-          color: AppColors.textSecondary,
+          color: context.mt.textSecondary,
           fontSize: 13,
           fontWeight: FontWeight.w500));
 }

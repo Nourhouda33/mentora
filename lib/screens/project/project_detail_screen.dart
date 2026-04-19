@@ -65,15 +65,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
         ModalRoute.of(context)!.settings.arguments as ProjectModel;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.mt.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: context.mt.background,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        iconTheme: IconThemeData(color: context.mt.textPrimary),
         title: Text(
           project.name,
           style: GoogleFonts.sora(
-            color: AppColors.textPrimary,
+            color: context.mt.textPrimary,
             fontSize: 17,
             fontWeight: FontWeight.w600,
           ),
@@ -86,8 +86,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(AppRadii.sm),
               ),
-              child: const Icon(Icons.videocam_outlined,
-                  color: AppColors.textPrimary, size: 20),
+              child: Icon(Icons.videocam_outlined, color: context.mt.textPrimary, size: 20),
             ),
             onPressed: () => Navigator.pushNamed(
               context,
@@ -110,7 +109,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                       Text(
                         '${project.members.length} member${project.members.length == 1 ? '' : 's'}',
                         style: GoogleFonts.sora(
-                            color: AppColors.textSecondary, fontSize: 12),
+                            color: context.mt.textSecondary, fontSize: 12),
                       )
                     else ...[
                       _MemberAvatarRow(memberNames: _memberNames),
@@ -118,7 +117,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                       Text(
                         '${_memberNames.length} member${_memberNames.length == 1 ? '' : 's'}',
                         style: GoogleFonts.sora(
-                            color: AppColors.textSecondary, fontSize: 12),
+                            color: context.mt.textSecondary, fontSize: 12),
                       ),
                     ],
                   ],
@@ -131,8 +130,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                 tabAlignment: TabAlignment.start,
                 indicatorColor: AppColors.primary,
                 indicatorWeight: 2,
-                labelColor: AppColors.textPrimary,
-                unselectedLabelColor: AppColors.textSecondary,
+                labelColor: context.mt.textPrimary,
+                unselectedLabelColor: context.mt.textSecondary,
                 labelStyle: GoogleFonts.sora(
                     fontSize: 13, fontWeight: FontWeight.w600),
                 unselectedLabelStyle: GoogleFonts.sora(
@@ -199,7 +198,7 @@ class _MemberAvatarRow extends StatelessWidget {
                     shape: BoxShape.circle,
                     color: _color(names[i]),
                     border: Border.all(
-                        color: AppColors.background, width: 1.5),
+                        color: context.mt.background, width: 1.5),
                   ),
                   child: Center(
                     child: Text(
@@ -222,12 +221,12 @@ class _MemberAvatarRow extends StatelessWidget {
                   shape: BoxShape.circle,
                   color: AppColors.surface,
                   border:
-                      Border.all(color: AppColors.background, width: 1.5),
+                      Border.all(color: context.mt.background, width: 1.5),
                 ),
                 child: Center(
                   child: Text('+$extra',
                       style: GoogleFonts.sora(
-                          color: AppColors.textSecondary,
+                          color: context.mt.textSecondary,
                           fontSize: 8,
                           fontWeight: FontWeight.w700)),
                 ),

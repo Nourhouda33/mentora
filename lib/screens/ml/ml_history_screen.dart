@@ -104,7 +104,7 @@ class _MlHistoryScreenState extends State<MlHistoryScreen> {
   void _showResultSheet(String title, String content) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.mt.surface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius:
@@ -132,7 +132,7 @@ class _MlHistoryScreenState extends State<MlHistoryScreen> {
               const SizedBox(height: 16),
               Text(title,
                   style: GoogleFonts.sora(
-                      color: AppColors.textPrimary,
+                      color: context.mt.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 14),
@@ -143,13 +143,13 @@ class _MlHistoryScreenState extends State<MlHistoryScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: AppColors.background,
+                      color: context.mt.background,
                       borderRadius: BorderRadius.circular(AppRadii.sm),
                     ),
                     child: Text(
                       content,
                       style: GoogleFonts.sora(
-                          color: AppColors.textPrimary,
+                          color: context.mt.textPrimary,
                           fontSize: 13,
                           height: 1.6),
                     ),
@@ -177,11 +177,11 @@ class _MlHistoryScreenState extends State<MlHistoryScreen> {
     final s = context.watch<AppSettingsProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.mt.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: context.mt.background,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        iconTheme: IconThemeData(color: context.mt.textPrimary),
         title: Text(
           s.t('ml_history'),
           style: GoogleFonts.sora(
@@ -243,18 +243,18 @@ class _MlHistoryScreenState extends State<MlHistoryScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.history_rounded,
-                                color: AppColors.textSecondary
+                                color: context.mt.textSecondary
                                     .withOpacity(0.4),
                                 size: 56),
                             const SizedBox(height: 12),
                             Text('No ML scans yet',
                                 style: GoogleFonts.sora(
-                                    color: AppColors.textSecondary,
+                                    color: context.mt.textSecondary,
                                     fontSize: 14)),
                             const SizedBox(height: 6),
                             Text('Use the buttons above to scan',
                                 style: GoogleFonts.sora(
-                                    color: AppColors.textSecondary
+                                    color: context.mt.textSecondary
                                         .withOpacity(0.6),
                                     fontSize: 12)),
                           ],
@@ -323,7 +323,7 @@ class _ActionCard extends StatelessWidget {
               label,
               textAlign: TextAlign.center,
               style: GoogleFonts.sora(
-                color: AppColors.textPrimary,
+                color: context.mt.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 height: 1.4,
@@ -416,19 +416,19 @@ class _HistoryCard extends StatelessWidget {
                       const Spacer(),
                       Text(_formatDate(entry.timestamp),
                           style: GoogleFonts.sora(
-                              color: AppColors.textSecondary, fontSize: 10)),
+                              color: context.mt.textSecondary, fontSize: 10)),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Text(entry.input,
                       style: GoogleFonts.sora(
-                          color: AppColors.textSecondary, fontSize: 11),
+                          color: context.mt.textSecondary, fontSize: 11),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
                   Text(entry.result,
                       style: GoogleFonts.sora(
-                          color: AppColors.textPrimary,
+                          color: context.mt.textPrimary,
                           fontSize: 12,
                           height: 1.4),
                       maxLines: 2,
@@ -439,8 +439,8 @@ class _HistoryCard extends StatelessWidget {
             const SizedBox(width: 8),
             GestureDetector(
               onTap: onDelete,
-              child: const Icon(Icons.delete_outline_rounded,
-                  color: AppColors.textSecondary, size: 18),
+              child: Icon(Icons.delete_outline_rounded,
+                  color: context.mt.textSecondary, size: 18),
             ),
           ],
         ),

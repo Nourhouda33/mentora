@@ -79,7 +79,7 @@ class _NewProjectScreenState extends State<NewProjectScreen> {
           'Code copié : ${_createdProject!.inviteCode}',
           style: GoogleFonts.sora(color: Colors.white),
         ),
-        backgroundColor: AppColors.surface,
+        backgroundColor: context.mt.surface,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -94,7 +94,7 @@ class _NewProjectScreenState extends State<NewProjectScreen> {
           'Lien copié',
           style: GoogleFonts.sora(color: Colors.white),
         ),
-        backgroundColor: AppColors.surface,
+        backgroundColor: context.mt.surface,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -105,7 +105,7 @@ class _NewProjectScreenState extends State<NewProjectScreen> {
     final s = context.watch<AppSettingsProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.mt.background,
       appBar: AppBar(
         title: Text(
           s.t('new_project'),
@@ -115,8 +115,8 @@ class _NewProjectScreenState extends State<NewProjectScreen> {
             fontWeight: FontWeight.w600,
           ),
         ),
-        backgroundColor: AppColors.background,
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        backgroundColor: context.mt.background,
+        iconTheme: IconThemeData(color: context.mt.textPrimary),
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -174,8 +174,7 @@ class _NewProjectScreenState extends State<NewProjectScreen> {
                         ),
                       ),
                     ),
-                    const Icon(Icons.calendar_today_outlined,
-                        color: AppColors.textSecondary, size: 18),
+                    Icon(Icons.calendar_today_outlined, color: context.mt.textSecondary, size: 18),
                   ],
                 ),
               ),
@@ -199,7 +198,7 @@ class _NewProjectScreenState extends State<NewProjectScreen> {
                         Text(
                           'Project QR Code',
                           style: GoogleFonts.sora(
-                            color: AppColors.textPrimary,
+                            color: context.mt.textPrimary,
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                           ),
@@ -208,7 +207,7 @@ class _NewProjectScreenState extends State<NewProjectScreen> {
                         Container(
                           width: 8,
                           height: 8,
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             color: AppColors.primary,
                             shape: BoxShape.circle,
                           ),
@@ -253,11 +252,11 @@ class _NewProjectScreenState extends State<NewProjectScreen> {
                               padding: const EdgeInsets.symmetric(
                                   vertical: 12, horizontal: 12),
                               decoration: BoxDecoration(
-                                color: AppColors.background,
+                                color: context.mt.background,
                                 borderRadius:
                                     BorderRadius.circular(AppRadii.sm),
                                 border: Border.all(
-                                  color: AppColors.textSecondary
+                                  color: context.mt.textSecondary
                                       .withOpacity(0.3),
                                 ),
                               ),
@@ -266,7 +265,7 @@ class _NewProjectScreenState extends State<NewProjectScreen> {
                                   Text(
                                     'PROJECT CODE',
                                     style: GoogleFonts.sora(
-                                      color: AppColors.textSecondary,
+                                      color: context.mt.textSecondary,
                                       fontSize: 9,
                                       fontWeight: FontWeight.w700,
                                       letterSpacing: 1,
@@ -276,7 +275,7 @@ class _NewProjectScreenState extends State<NewProjectScreen> {
                                   Text(
                                     _createdProject!.inviteCode,
                                     style: GoogleFonts.sora(
-                                      color: AppColors.textPrimary,
+                                      color: context.mt.textPrimary,
                                       fontSize: 18,
                                       fontWeight: FontWeight.w700,
                                       letterSpacing: 3,
@@ -401,7 +400,7 @@ class _SectionLabel extends StatelessWidget {
     return Text(
       text,
       style: GoogleFonts.sora(
-        color: AppColors.textSecondary,
+        color: context.mt.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.w700,
         letterSpacing: 1.4,
@@ -432,13 +431,13 @@ class _InputField extends StatelessWidget {
         controller: controller,
         maxLines: maxLines,
         style: GoogleFonts.sora(
-          color: AppColors.textPrimary,
+          color: context.mt.textPrimary,
           fontSize: 14,
         ),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: GoogleFonts.sora(
-            color: AppColors.textSecondary,
+            color: context.mt.textSecondary,
             fontSize: 14,
           ),
           border: InputBorder.none,

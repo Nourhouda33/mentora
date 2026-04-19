@@ -119,10 +119,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final mt = context.mt;
     final s = context.watch<AppSettingsProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: mt.background,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -134,19 +135,21 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 32),
               Text(s.t('login'),
                   style: GoogleFonts.sora(
-                      color: AppColors.textPrimary,
+                      color: mt.textPrimary,
                       fontSize: 26,
                       fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
               Text(s.t('splash_subtitle'),
                   style: GoogleFonts.sora(
-                      color: AppColors.textSecondary, fontSize: 13)),
+                      color: mt.textSecondary, fontSize: 13)),
               const SizedBox(height: 32),
               _buildField(s.t('email'), _emailCtrl,
+                  mt: mt,
                   icon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress),
               const SizedBox(height: 16),
               _buildField(s.t('password'), _passCtrl,
+                  mt: mt,
                   icon: Icons.lock_outline,
                   obscure: _obscure,
                   toggle: () => setState(() => _obscure = !_obscure)),
@@ -208,14 +211,14 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 24),
               Row(
                 children: [
-                  const Expanded(child: Divider(color: AppColors.surface, thickness: 1.5)),
+                  Expanded(child: Divider(color: mt.divider, thickness: 1.5)),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Text('or',
                         style: GoogleFonts.sora(
-                            color: AppColors.textSecondary, fontSize: 13)),
+                            color: mt.textSecondary, fontSize: 13)),
                   ),
-                  const Expanded(child: Divider(color: AppColors.surface, thickness: 1.5)),
+                  Expanded(child: Divider(color: mt.divider, thickness: 1.5)),
                 ],
               ),
               const SizedBox(height: 16),
@@ -225,11 +228,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _loading ? null : _signInWithGoogle,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textPrimary,
-                    side: const BorderSide(color: AppColors.surface, width: 1.5),
+                    foregroundColor: mt.textPrimary,
+                    side: BorderSide(color: mt.divider, width: 1.5),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppRadii.md)),
-                    backgroundColor: AppColors.surface,
+                    backgroundColor: mt.surface,
                   ),
                   icon: Image.network(
                     'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
@@ -251,7 +254,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: RichText(
                     text: TextSpan(
                       style: GoogleFonts.sora(
-                          fontSize: 13, color: AppColors.textSecondary),
+                          fontSize: 13, color: mt.textSecondary),
                       children: [
                         TextSpan(text: s.t('no_account')),
                         TextSpan(
@@ -275,6 +278,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildField(
     String hint,
     TextEditingController ctrl, {
+    required MentoraTheme mt,
     required IconData icon,
     bool obscure = false,
     VoidCallback? toggle,
@@ -282,23 +286,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: mt.surface,
         borderRadius: BorderRadius.circular(AppRadii.sm),
       ),
       child: TextField(
         controller: ctrl,
         obscureText: obscure,
         keyboardType: keyboardType,
-        style: GoogleFonts.sora(color: AppColors.textPrimary),
+        style: GoogleFonts.sora(color: mt.textPrimary),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: GoogleFonts.sora(color: AppColors.textSecondary),
-          prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
+          hintStyle: GoogleFonts.sora(color: mt.textSecondary),
+          prefixIcon: Icon(icon, color: mt.textSecondary, size: 20),
           suffixIcon: toggle != null
               ? IconButton(
                   icon: Icon(
                       obscure ? Icons.visibility_off : Icons.visibility,
-                      color: AppColors.textSecondary,
+                      color: mt.textSecondary,
                       size: 20),
                   onPressed: toggle)
               : null,

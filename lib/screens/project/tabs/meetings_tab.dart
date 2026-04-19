@@ -55,12 +55,12 @@ class _MeetingsTabState extends State<MeetingsTab> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
-          backgroundColor: AppColors.surface,
+          backgroundColor: context.mt.surface,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadii.md)),
           title: Text('Schedule Meeting',
               style: GoogleFonts.sora(
-                  color: AppColors.textPrimary,
+                  color: context.mt.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w600)),
           content: SingleChildScrollView(
@@ -140,7 +140,7 @@ class _MeetingsTabState extends State<MeetingsTab> {
                       checkColor: Colors.white,
                       title: Text(e.value,
                           style: GoogleFonts.sora(
-                              color: AppColors.textPrimary, fontSize: 13)),
+                              color: context.mt.textPrimary, fontSize: 13)),
                       value: selectedUids.contains(e.key),
                       onChanged: (v) => setDlg(() {
                         if (v == true) {
@@ -158,7 +158,7 @@ class _MeetingsTabState extends State<MeetingsTab> {
               onPressed: () => Navigator.pop(ctx),
               child: Text('Cancel',
                   style:
-                      GoogleFonts.sora(color: AppColors.textSecondary)),
+                      GoogleFonts.sora(color: context.mt.textSecondary)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -230,7 +230,7 @@ class _MeetingsTabState extends State<MeetingsTab> {
                     padding: const EdgeInsets.only(bottom: 16),
                     child: Text('No upcoming meetings',
                         style: GoogleFonts.sora(
-                            color: AppColors.textSecondary, fontSize: 13)),
+                            color: context.mt.textSecondary, fontSize: 13)),
                   )
                 else
                   ...upcoming.map((m) => _UpcomingCard(
@@ -247,7 +247,7 @@ class _MeetingsTabState extends State<MeetingsTab> {
                 if (past.isEmpty)
                   Text('No past meetings',
                       style: GoogleFonts.sora(
-                          color: AppColors.textSecondary, fontSize: 13))
+                          color: context.mt.textSecondary, fontSize: 13))
                 else
                   ...past.map((m) => _PastRow(
                         meeting: m,
@@ -336,14 +336,14 @@ class _UpcomingCard extends StatelessWidget {
                 children: [
                   Text(meeting.title,
                       style: GoogleFonts.sora(
-                          color: AppColors.textPrimary,
+                          color: context.mt.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
                   Text(
                     '${_formatDate(meeting.date)} • ${_formatTime(meeting.date)}',
                     style: GoogleFonts.sora(
-                        color: AppColors.textSecondary, fontSize: 12),
+                        color: context.mt.textSecondary, fontSize: 12),
                   ),
                 ],
               ),
@@ -408,13 +408,13 @@ class _PastRow extends StatelessWidget {
               children: [
                 Text(meeting.title,
                     style: GoogleFonts.sora(
-                        color: AppColors.textPrimary,
+                        color: context.mt.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text(_formatShort(meeting.date),
                     style: GoogleFonts.sora(
-                        color: AppColors.textSecondary, fontSize: 12)),
+                        color: context.mt.textSecondary, fontSize: 12)),
               ],
             ),
           ),
@@ -432,7 +432,7 @@ class _PastRow extends StatelessWidget {
                           shape: BoxShape.circle,
                           color: _avatarColor(i),
                           border: Border.all(
-                              color: AppColors.background, width: 1.5),
+                              color: context.mt.background, width: 1.5),
                         ),
                         child: Center(
                           child: Text(
@@ -462,7 +462,7 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(text,
       style: GoogleFonts.sora(
-          color: AppColors.textSecondary,
+          color: context.mt.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.4));
@@ -476,7 +476,7 @@ class _DlgLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(text,
       style: GoogleFonts.sora(
-          color: AppColors.textSecondary,
+          color: context.mt.textSecondary,
           fontSize: 12,
           fontWeight: FontWeight.w600));
 }
@@ -489,13 +489,13 @@ class _DlgField extends StatelessWidget {
   @override
   Widget build(BuildContext context) => TextField(
         controller: controller,
-        style: GoogleFonts.sora(color: AppColors.textPrimary, fontSize: 13),
+        style: GoogleFonts.sora(color: context.mt.textPrimary, fontSize: 13),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle:
-              GoogleFonts.sora(color: AppColors.textSecondary, fontSize: 13),
+              GoogleFonts.sora(color: context.mt.textSecondary, fontSize: 13),
           filled: true,
-          fillColor: AppColors.background,
+          fillColor: context.mt.background,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadii.sm),
             borderSide: BorderSide.none,
@@ -516,16 +516,16 @@ class _DlgPickerBox extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.background,
+          color: context.mt.background,
           borderRadius: BorderRadius.circular(AppRadii.sm),
         ),
         child: Row(
           children: [
-            Icon(icon, color: AppColors.textSecondary, size: 16),
+            Icon(icon, color: context.mt.textSecondary, size: 16),
             const SizedBox(width: 8),
             Text(label,
                 style: GoogleFonts.sora(
-                    color: AppColors.textPrimary, fontSize: 13)),
+                    color: context.mt.textPrimary, fontSize: 13)),
           ],
         ),
       );

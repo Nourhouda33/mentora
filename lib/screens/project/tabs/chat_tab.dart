@@ -13,10 +13,56 @@ import '../../../core/theme.dart';
 import '../../../providers/app_settings_provider.dart';
 import '../../../providers/collaboration_provider.dart';
 
-const _aiKeywords = [
-  'deadline', 'review', 'finalize', 'standup', 'wireframe',
-  'sync', 'meeting', 'check', 'update', 'finish', 'complete',
-];
+// ── AI Detection engine ───────────────────────────────────────────────────────
+enum _DetectionType { task, meeting }
+
+class _Detection {
+  final _DetectionType type;
+  final String text;
+  _Detection(this.type, this.text);
+}
+
+_Detection? _analyzeText(String text) {
+  final lower = text.toLowerCase();
+
+  const taskPatterns = [
+    'il faut', 'on doit', 'faut faire', 'faut créer', 'faut ajouter',
+    'faut implémenter', 'faut corriger', 'faut développer', 'faut finir',
+    'faut terminer', 'faut tester', 'faut vérifier', 'faut mettre',
+    'we need to', 'we should', 'we must', 'need to create', 'need to add',
+    'need to fix', 'need to build', 'need to implement', 'need to test',
+    'todo:', 'to do:', 'task:', 'tâche:', 'action:',
+    'créer une', 'créer un', 'ajouter une', 'ajouter un',
+    'implémenter', 'développer', 'corriger le', 'corriger la',
+    'faire une page', 'faire un', 'faire la', 'faire le',
+    'create a', 'create the', 'add a', 'add the', 'fix the', 'fix a',
+    'build a', 'build the', 'write a', 'write the', 'update the',
+    'refactor', 'migrate', 'deploy', 'configure', 'setup',
+  ];
+
+  const meetingPatterns = [
+    'réunion', 'meeting', 'appel', 'call', 'visio', 'conférence',
+    'on se retrouve', 'on se voit', 'rendez-vous', 'rdv',
+    'demain à', 'lundi à', 'mardi à', 'mercredi à', 'jeudi à', 'vendredi à',
+    'demain matin', 'demain soir', 'ce soir', 'cet après-midi',
+    'tomorrow at', 'monday at', 'tuesday at', 'wednesday at',
+    'thursday at', 'friday at', 'let\'s meet', 'let\'s call',
+    'schedule a', 'planifier', 'organiser une', 'organiser un',
+    'sync demain', 'sync tomorrow', 'daily', 'standup',
+  ];
+
+  for (final p in meetingPatterns) {
+    if (lower.contains(p)) {
+      return _Detection(_DetectionType.meeting, text);
+    }
+  }
+  for (final p in taskPatterns) {
+    if (lower.contains(p)) {
+      return _Detection(_DetectionType.task, text);
+    }
+  }
+  return null;
+}
 
 class ChatTab extends StatefulWidget {
   final ProjectModel project;
@@ -26,13 +72,19 @@ class ChatTab extends StatefulWidget {
   State<ChatTab> createState() => _ChatTabState();
 }
 
+// Persists across widget rebuilds for the lifetime of the app session
+// key = projectId, value = last analyzed message id
+final Map<String, String> _analyzedIds = {};
+// key = projectId, value = set of message ids already handled (saved or ignored)
+final Map<String, Set<String>> _handledIds = {};
+
 class _ChatTabState extends State<ChatTab> {
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   final _picker = ImagePicker();
 
-  String? _aiSuggestionText;
-  bool _showAiCard = false;
+  _Detection? _detection;
+  String? _detectionMsgId;
 
   late final Stream<List<MessageModel>> _messagesStream;
 
@@ -46,6 +98,7 @@ class _ChatTabState extends State<ChatTab> {
   @override
   void initState() {
     super.initState();
+    _handledIds.putIfAbsent(widget.project.id, () => {});
     _messagesStream = context
         .read<CollaborationProvider>()
         .messagesStream(widget.project.id);
@@ -58,30 +111,43 @@ class _ChatTabState extends State<ChatTab> {
     super.dispose();
   }
 
+  void _onNewMessages(List<MessageModel> messages) {
+    if (messages.isEmpty) return;
+    final last = messages.last;
+    if (last.type != MessageType.text) return;
+
+    final pid = widget.project.id;
+    // Already analyzed this message
+    if (_analyzedIds[pid] == last.id) return;
+    // Already handled (saved or ignored) by user
+    if (_handledIds[pid]!.contains(last.id)) return;
+
+    _analyzedIds[pid] = last.id;
+
+    final detection = _analyzeText(last.text);
+    if (detection != null && mounted) {
+      setState(() {
+        _detection = detection;
+        _detectionMsgId = last.id;
+      });
+    }
+  }
+
+  void _dismissDetection() {
+    if (_detectionMsgId != null) {
+      _handledIds[widget.project.id]!.add(_detectionMsgId!);
+    }
+    setState(() { _detection = null; _detectionMsgId = null; });
+  }
+
   void _sendText() {
     final text = _msgCtrl.text.trim();
     if (text.isEmpty) return;
-
     context.read<CollaborationProvider>().sendTextMessage(
           projectId: widget.project.id,
           sender: _currentUser,
           text: text,
         );
-
-    final lower = text.toLowerCase();
-    final matched = _aiKeywords.firstWhere(
-      (k) => lower.contains(k),
-      orElse: () => '',
-    );
-    if (matched.isNotEmpty) {
-      final suggestion =
-          text.length > 40 ? '${text.substring(0, 40)}...' : text;
-      setState(() {
-        _aiSuggestionText = suggestion;
-        _showAiCard = true;
-      });
-    }
-
     _msgCtrl.clear();
     _scrollToBottom();
   }
@@ -98,10 +164,61 @@ class _ChatTabState extends State<ChatTab> {
     });
   }
 
+  Future<void> _saveDetection() async {
+    final d = _detection;
+    final msgId = _detectionMsgId;
+    if (d == null) return;
+
+    // Mark as handled so it never re-triggers
+    if (msgId != null) {
+      _handledIds[widget.project.id]!.add(msgId);
+    }
+    setState(() { _detection = null; _detectionMsgId = null; });
+
+    if (d.type == _DetectionType.task) {
+      await context.read<CollaborationProvider>().addTaskFromSuggestion(
+            projectId: widget.project.id,
+            title: d.text.length > 80 ? '${d.text.substring(0, 80)}...' : d.text,
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('✅ Task saved',
+              style: GoogleFonts.sora(color: Colors.white)),
+          backgroundColor: AppColors.success,
+          duration: const Duration(seconds: 2),
+        ));
+      }
+    } else {
+      // Save to meetings tab
+      await context.read<CollaborationProvider>().addMeeting(MeetingModel(
+            id: '',
+            projectId: widget.project.id,
+            title: d.text.length > 80 ? '${d.text.substring(0, 80)}...' : d.text,
+            date: DateTime.now().add(const Duration(days: 1)),
+            link: '',
+            participants: [_currentUid],
+          ));
+      // Also post a calendar card in chat so members see it
+      await context.read<CollaborationProvider>().sendCalendarMessage(
+            projectId: widget.project.id,
+            sender: _currentUser,
+            title: d.text.length > 80 ? '${d.text.substring(0, 80)}...' : d.text,
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('📅 Meeting saved to Meetings tab',
+              style: GoogleFonts.sora(color: Colors.white)),
+          backgroundColor: AppColors.primary,
+          duration: const Duration(seconds: 2),
+        ));
+      }
+    }
+  }
+
   void _showCameraSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.mt.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
       ),
@@ -113,8 +230,7 @@ class _ChatTabState extends State<ChatTab> {
           children: [
             Center(
               child: Container(
-                width: 36,
-                height: 4,
+                width: 36, height: 4,
                 decoration: BoxDecoration(
                   color: AppColors.textSecondary.withOpacity(0.4),
                   borderRadius: BorderRadius.circular(2),
@@ -122,31 +238,22 @@ class _ChatTabState extends State<ChatTab> {
               ),
             ),
             const SizedBox(height: 16),
-            Text(
-              'What do you want to do?',
-              style: GoogleFonts.sora(
-                color: AppColors.textPrimary,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text('What do you want to do?',
+                style: GoogleFonts.sora(
+                    color: context.mt.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600)),
             const SizedBox(height: 16),
             _SheetOption(
               icon: Icons.picture_as_pdf_rounded,
               label: 'Scan & Convert PDF',
-              onTap: () {
-                Navigator.pop(context);
-                _scanAndConvertPdf();
-              },
+              onTap: () { Navigator.pop(context); _scanAndConvertPdf(); },
             ),
             const SizedBox(height: 10),
             _SheetOption(
               icon: Icons.image_outlined,
               label: 'Send as Photo',
-              onTap: () {
-                Navigator.pop(context);
-                _sendAsPhoto();
-              },
+              onTap: () { Navigator.pop(context); _sendAsPhoto(); },
             ),
           ],
         ),
@@ -161,14 +268,10 @@ class _ChatTabState extends State<ChatTab> {
       final pdf = pw.Document();
       final imageBytes = await File(xfile.path).readAsBytes();
       final pdfImage = pw.MemoryImage(imageBytes);
-      pdf.addPage(pw.Page(
-        build: (ctx) => pw.Center(child: pw.Image(pdfImage)),
-      ));
+      pdf.addPage(pw.Page(build: (ctx) => pw.Center(child: pw.Image(pdfImage))));
       final dir = await getTemporaryDirectory();
-      final pdfPath =
-          '${dir.path}/scan_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final pdfFile = File(pdfPath);
-      await pdfFile.writeAsBytes(await pdf.save());
+      final pdfPath = '${dir.path}/scan_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      await File(pdfPath).writeAsBytes(await pdf.save());
       if (!mounted) return;
       context.read<CollaborationProvider>().sendFileMessage(
             projectId: widget.project.id,
@@ -180,20 +283,17 @@ class _ChatTabState extends State<ChatTab> {
       _scrollToBottom();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur lors de la conversion PDF',
-              style: GoogleFonts.sora(color: Colors.white)),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Erreur lors de la conversion PDF',
+            style: GoogleFonts.sora(color: Colors.white)),
+        backgroundColor: AppColors.error,
+      ));
     }
   }
 
   Future<void> _sendAsPhoto() async {
     final xfile = await _picker.pickImage(source: ImageSource.camera);
-    if (xfile == null) return;
-    if (!mounted) return;
+    if (xfile == null || !mounted) return;
     context.read<CollaborationProvider>().sendFileMessage(
           projectId: widget.project.id,
           sender: _currentUser,
@@ -208,8 +308,7 @@ class _ChatTabState extends State<ChatTab> {
     final result = await FilePicker.platform.pickFiles();
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
-    if (file.path == null) return;
-    if (!mounted) return;
+    if (file.path == null || !mounted) return;
     context.read<CollaborationProvider>().sendFileMessage(
           projectId: widget.project.id,
           sender: _currentUser,
@@ -220,23 +319,6 @@ class _ChatTabState extends State<ChatTab> {
     _scrollToBottom();
   }
 
-  void _addToList() {
-    if (_aiSuggestionText == null) return;
-    context.read<CollaborationProvider>().addTaskFromSuggestion(
-          projectId: widget.project.id,
-          title: _aiSuggestionText!,
-        );
-    setState(() => _showAiCard = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Tâche ajoutée',
-            style: GoogleFonts.sora(color: Colors.white)),
-        backgroundColor: AppColors.success,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -245,51 +327,35 @@ class _ChatTabState extends State<ChatTab> {
           child: StreamBuilder<List<MessageModel>>(
             stream: _messagesStream,
             builder: (ctx, snap) {
-              if (snap.connectionState == ConnectionState.waiting &&
-                  !snap.hasData) {
+              if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
                 return const Center(
-                    child: CircularProgressIndicator(
-                        color: AppColors.primary));
+                    child: CircularProgressIndicator(color: AppColors.primary));
               }
               final messages = snap.data ?? [];
-              WidgetsBinding.instance
-                  .addPostFrameCallback((_) => _scrollToBottom());
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _onNewMessages(messages);
+                _scrollToBottom();
+              });
+
               return ListView.builder(
                 controller: _scrollCtrl,
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                itemCount: messages.length + (_showAiCard ? 1 : 0),
-                itemBuilder: (ctx, i) {
-                  if (_showAiCard && i == messages.length) {
-                    return _AiSuggestionCard(
-                      suggestion: _aiSuggestionText ?? '',
-                      onAddToList: _addToList,
-                      onIgnore: () => setState(() => _showAiCard = false),
-                    );
-                  }
-                  final msg = messages[i];
-                  if (_showAiCard &&
-                      i == messages.length - 1 &&
-                      messages.length > 1) {
-                    return Column(
-                      children: [
-                        _MessageBubble(
-                            message: msg, currentUid: _currentUid),
-                        _AiSuggestionCard(
-                          suggestion: _aiSuggestionText ?? '',
-                          onAddToList: _addToList,
-                          onIgnore: () =>
-                              setState(() => _showAiCard = false),
-                        ),
-                      ],
-                    );
-                  }
-                  return _MessageBubble(
-                      message: msg, currentUid: _currentUid);
-                },
+                itemCount: messages.length,
+                itemBuilder: (ctx, i) =>
+                    _MessageBubble(message: messages[i], currentUid: _currentUid),
               );
             },
           ),
         ),
+
+        // ── AI Detection Banner ──────────────────────────────────────
+        if (_detection != null)
+          _AiDetectionBanner(
+            detection: _detection!,
+            onSave: _saveDetection,
+            onIgnore: _dismissDetection,
+          ),
+
         _InputBar(
           controller: _msgCtrl,
           onSend: _sendText,
@@ -389,7 +455,7 @@ class _MessageBubble extends StatelessWidget {
               Text(
                 message.sender,
                 style: GoogleFonts.sora(
-                  color: AppColors.textPrimary,
+                  color: context.mt.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -398,7 +464,7 @@ class _MessageBubble extends StatelessWidget {
               Text(
                 '• ${_formatTime(message.timestamp)}',
                 style: GoogleFonts.sora(
-                  color: AppColors.textSecondary,
+                  color: context.mt.textSecondary,
                   fontSize: 11,
                 ),
               ),
@@ -428,9 +494,8 @@ class _MessageBubble extends StatelessWidget {
                       child: Image.file(
                         File(message.filePath!),
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                            Icons.broken_image,
-                            color: AppColors.textSecondary),
+                        errorBuilder: (_, __, ___) => Icon(
+                            Icons.broken_image, color: context.mt.textSecondary),
                       ),
                     ),
                   )
@@ -465,7 +530,7 @@ class _MessageBubble extends StatelessWidget {
                     : Text(
                         message.text,
                         style: GoogleFonts.sora(
-                          color: AppColors.textPrimary,
+                          color: context.mt.textPrimary,
                           fontSize: 14,
                           height: 1.5,
                         ),
@@ -513,7 +578,7 @@ class _CalendarCard extends StatelessWidget {
                 Text(
                   message.text,
                   style: GoogleFonts.sora(
-                    color: AppColors.textPrimary,
+                    color: context.mt.textPrimary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -521,7 +586,7 @@ class _CalendarCard extends StatelessWidget {
                 Text(
                   'Added to calendar by ${message.sender}',
                   style: GoogleFonts.sora(
-                    color: AppColors.textSecondary,
+                    color: context.mt.textSecondary,
                     fontSize: 11,
                   ),
                 ),
@@ -536,120 +601,94 @@ class _CalendarCard extends StatelessWidget {
   }
 }
 
-// ── AI Suggestion Card ────────────────────────────────────────────────────────
-class _AiSuggestionCard extends StatelessWidget {
-  final String suggestion;
-  final VoidCallback onAddToList;
+// ── AI Detection Banner ───────────────────────────────────────────────────────
+class _AiDetectionBanner extends StatelessWidget {
+  final _Detection detection;
+  final VoidCallback onSave;
   final VoidCallback onIgnore;
 
-  const _AiSuggestionCard({
-    required this.suggestion,
-    required this.onAddToList,
+  const _AiDetectionBanner({
+    required this.detection,
+    required this.onSave,
     required this.onIgnore,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isTask = detection.type == _DetectionType.task;
+    final color = isTask ? AppColors.success : AppColors.primary;
+    final icon = isTask ? Icons.task_alt_rounded : Icons.event_rounded;
+    final typeLabel = isTask ? 'TASK DETECTED' : 'MEETING DETECTED';
+    final actionLabel = isTask ? 'Save Task' : 'Save to Calendar';
+    final preview = detection.text.length > 60
+        ? '${detection.text.substring(0, 60)}...'
+        : detection.text;
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E2640),
-        borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(
-            color: AppColors.primary.withOpacity(0.3), width: 1),
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border.all(color: color.withOpacity(0.35), width: 1),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: AppColors.primary,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'AI SUGGESTION',
-                style: GoogleFonts.sora(
-                  color: AppColors.primary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const Spacer(),
-              Icon(Icons.auto_awesome_rounded,
-                  color: AppColors.primary.withOpacity(0.7), size: 16),
-            ],
+          Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 17),
           ),
-          const SizedBox(height: 10),
-          Text(
-            'New Task Detected',
-            style: GoogleFonts.sora(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Container(width: 6, height: 6,
+                      decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                  const SizedBox(width: 5),
+                  Text('AI — $typeLabel',
+                      style: GoogleFonts.sora(
+                          color: color, fontSize: 9,
+                          fontWeight: FontWeight.w700, letterSpacing: 1)),
+                ]),
+                const SizedBox(height: 3),
+                Text('"$preview"',
+                    style: GoogleFonts.sora(
+                        color: context.mt.textSecondary,
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            '"$suggestion"',
-            style: GoogleFonts.sora(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Row(
+          const SizedBox(width: 8),
+          Column(
             children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: onAddToList,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadii.sm),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    elevation: 0,
+              GestureDetector(
+                onTap: onSave,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
                   ),
-                  child: Text(
-                    'Add to List',
-                    style: GoogleFonts.sora(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: Text(actionLabel,
+                      style: GoogleFonts.sora(
+                          color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: onIgnore,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textSecondary,
-                    side: BorderSide(
-                        color: AppColors.textSecondary.withOpacity(0.3)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadii.sm),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                  child: Text(
-                    'Ignore',
+              const SizedBox(height: 4),
+              GestureDetector(
+                onTap: onIgnore,
+                child: Text('Ignore',
                     style: GoogleFonts.sora(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
+                        color: context.mt.textSecondary, fontSize: 10)),
               ),
             ],
           ),
@@ -677,8 +716,8 @@ class _InputBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-      decoration: const BoxDecoration(
-        color: AppColors.background,
+      decoration: BoxDecoration(
+        color: context.mt.background,
         border: Border(
             top: BorderSide(color: Color(0xFF252D40), width: 1)),
       ),
@@ -687,8 +726,7 @@ class _InputBar extends StatelessWidget {
           // Camera icon
           IconButton(
             onPressed: onCamera,
-            icon: const Icon(Icons.camera_alt_outlined,
-                color: AppColors.textSecondary, size: 22),
+            icon: Icon(Icons.camera_alt_outlined, color: context.mt.textSecondary, size: 22),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
@@ -708,13 +746,13 @@ class _InputBar extends StatelessWidget {
                     child: TextField(
                       controller: controller,
                       style: GoogleFonts.sora(
-                        color: AppColors.textPrimary,
+                        color: context.mt.textPrimary,
                         fontSize: 14,
                       ),
                       decoration: InputDecoration(
                         hintText: 'Message Project Chat...',
                         hintStyle: GoogleFonts.sora(
-                          color: AppColors.textSecondary,
+                          color: context.mt.textSecondary,
                           fontSize: 13,
                         ),
                         border: InputBorder.none,
@@ -728,8 +766,7 @@ class _InputBar extends StatelessWidget {
                   // Attach icon
                   GestureDetector(
                     onTap: onAttach,
-                    child: const Icon(Icons.attach_file_rounded,
-                        color: AppColors.textSecondary, size: 20),
+                    child: Icon(Icons.attach_file_rounded, color: context.mt.textSecondary, size: 20),
                   ),
                 ],
               ),
@@ -777,7 +814,7 @@ class _SheetOption extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: AppColors.background,
+          color: context.mt.background,
           borderRadius: BorderRadius.circular(AppRadii.sm),
         ),
         child: Row(
@@ -787,7 +824,7 @@ class _SheetOption extends StatelessWidget {
             Text(
               label,
               style: GoogleFonts.sora(
-                color: AppColors.textPrimary,
+                color: context.mt.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),

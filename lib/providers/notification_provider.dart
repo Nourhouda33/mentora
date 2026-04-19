@@ -8,6 +8,8 @@ class AppNotification {
   final String message;
   final DateTime date;
   bool isRead;
+  final String? projectId;
+  final String? type;
 
   AppNotification({
     required this.id,
@@ -15,6 +17,8 @@ class AppNotification {
     required this.message,
     required this.date,
     this.isRead = false,
+    this.projectId,
+    this.type,
   });
 
   factory AppNotification.fromDoc(DocumentSnapshot doc) {
@@ -25,6 +29,8 @@ class AppNotification {
       message: d['message'] ?? '',
       date: (d['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isRead: d['isRead'] ?? false,
+      projectId: d['projectId'],
+      type: d['type'],
     );
   }
 
@@ -33,6 +39,8 @@ class AppNotification {
         'message': message,
         'date': Timestamp.fromDate(date),
         'isRead': isRead,
+        if (projectId != null) 'projectId': projectId,
+        if (type != null) 'type': type,
       };
 }
 

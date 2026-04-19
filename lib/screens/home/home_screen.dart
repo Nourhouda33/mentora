@@ -35,10 +35,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final mt = context.mt;
     final s = context.watch<AppSettingsProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: mt.background,
       bottomNavigationBar: _BottomBar(),
       body: SafeArea(
         child: Padding(
@@ -52,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   RichText(
                     text: TextSpan(
                       style: GoogleFonts.sora(
-                        color: AppColors.textPrimary,
+                        color: mt.textPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
                       ),
@@ -77,10 +78,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: AppColors.primary.withOpacity(0.5),
                           width: 2,
                         ),
-                        color: AppColors.surface,
+                        color: mt.surface,
                       ),
-                      child: const Icon(Icons.person,
-                          color: AppColors.textSecondary, size: 26),
+                      child: Icon(Icons.person,
+                          color: mt.textSecondary, size: 26),
                     ),
                   ),
                 ],
@@ -92,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Text(
                       s.t('my_projects'),
                       style: GoogleFonts.sora(
-                        color: AppColors.textPrimary,
+                        color: mt.textPrimary,
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
                       ),
@@ -105,11 +106,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: AppColors.surface,
+                        color: mt.surface,
                         borderRadius: BorderRadius.circular(AppRadii.sm),
                       ),
-                      child: const Icon(Icons.qr_code_scanner_rounded,
-                          color: AppColors.textPrimary, size: 22),
+                      child: Icon(Icons.qr_code_scanner_rounded,
+                          color: mt.textPrimary, size: 22),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -154,7 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       return Center(
                         child: Text(s.t('no_projects'),
                             style: GoogleFonts.sora(
-                                color: AppColors.textSecondary,
+                                color: mt.textSecondary,
                                 fontSize: 14)),
                       );
                     }
@@ -181,18 +182,28 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+ProjectModel? _findProject(BuildContext context, String projectId) {
+  try {
+    final collab = context.read<CollaborationProvider>();
+    return collab.projects.firstWhere((p) => p.id == projectId);
+  } catch (_) {
+    return null;
+  }
+}
+
 // ── 🔔 Notification Bell ──────────────────────────────────────────────────────
 class _NotificationBell extends StatelessWidget {
   const _NotificationBell();
 
   @override
   Widget build(BuildContext context) {
+    final mt = context.mt;
     final notif = context.watch<NotificationProvider>();
     final unread = notif.unreadCount;
 
     return PopupMenuButton<String>(
       offset: const Offset(0, 48),
-      color: AppColors.surface,
+      color: mt.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.md),
       ),
@@ -220,7 +231,7 @@ class _NotificationBell extends StatelessWidget {
                 child: Text(
                   'No notifications yet',
                   style: GoogleFonts.sora(
-                    color: AppColors.textSecondary,
+                    color: mt.textSecondary,
                     fontSize: 13,
                   ),
                 ),
@@ -231,8 +242,16 @@ class _NotificationBell extends StatelessWidget {
           ...notif.notifications.take(8).map(
                 (n) => PopupMenuItem(
                   padding: EdgeInsets.zero,
-                  onTap: () =>
-                      context.read<NotificationProvider>().markRead(n.id),
+                  onTap: () {
+                    context.read<NotificationProvider>().markRead(n.id);
+                    if (n.type == 'live_meeting' && n.projectId != null) {
+                      Navigator.pushNamed(
+                        context,
+                        AppRoutes.meetingRoom,
+                        arguments: _findProject(context, n.projectId!),
+                      );
+                    }
+                  },
                   child: _NotifItem(notification: n),
                 ),
               ),
@@ -244,14 +263,14 @@ class _NotificationBell extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: mt.surface,
               borderRadius: BorderRadius.circular(AppRadii.sm),
             ),
             child: Icon(
               unread > 0
                   ? Icons.notifications_rounded
                   : Icons.notifications_outlined,
-              color: unread > 0 ? AppColors.primary : AppColors.textSecondary,
+              color: unread > 0 ? AppColors.primary : mt.textSecondary,
               size: 22,
             ),
           ),
@@ -263,7 +282,7 @@ class _NotificationBell extends StatelessWidget {
               child: Container(
                 width: 18,
                 height: 18,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: AppColors.error,
                   shape: BoxShape.circle,
                 ),
@@ -294,6 +313,7 @@ class _NotifHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mt = context.mt;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
       child: Row(
@@ -301,7 +321,7 @@ class _NotifHeader extends StatelessWidget {
           Text(
             'Notifications',
             style: GoogleFonts.sora(
-              color: AppColors.textPrimary,
+              color: mt.textPrimary,
               fontSize: 14,
               fontWeight: FontWeight.w700,
             ),
@@ -358,6 +378,7 @@ class _NotifItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mt = context.mt;
     final isUnread = !notification.isRead;
 
     return Container(
@@ -390,7 +411,7 @@ class _NotifItem extends StatelessWidget {
                 Text(
                   notification.title,
                   style: GoogleFonts.sora(
-                    color: AppColors.textPrimary,
+                    color: mt.textPrimary,
                     fontSize: 12,
                     fontWeight:
                         isUnread ? FontWeight.w600 : FontWeight.w400,
@@ -400,7 +421,7 @@ class _NotifItem extends StatelessWidget {
                 Text(
                   notification.message,
                   style: GoogleFonts.sora(
-                    color: AppColors.textSecondary,
+                    color: mt.textSecondary,
                     fontSize: 11,
                     height: 1.4,
                   ),
@@ -411,7 +432,7 @@ class _NotifItem extends StatelessWidget {
                 Text(
                   _timeAgo(notification.date),
                   style: GoogleFonts.sora(
-                    color: AppColors.textSecondary.withOpacity(0.6),
+                    color: mt.textSecondary.withOpacity(0.6),
                     fontSize: 10,
                   ),
                 ),
@@ -432,6 +453,7 @@ class _ProjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mt = context.mt;
     final members = project.members;
     return GestureDetector(
       onTap: () => Navigator.pushNamed(
@@ -442,7 +464,7 @@ class _ProjectCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: mt.surface,
           borderRadius: BorderRadius.circular(AppRadii.md),
           border: Border(left: BorderSide(color: accentColor, width: 3)),
         ),
@@ -454,7 +476,7 @@ class _ProjectCard extends StatelessWidget {
                 child: Text(
                   project.name,
                   style: GoogleFonts.sora(
-                    color: AppColors.textPrimary,
+                    color: mt.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
@@ -476,6 +498,7 @@ class _MemberAvatars extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mt = context.mt;
     const maxShow = 3;
     final show = members.length > maxShow ? maxShow : members.length;
     final extra = members.length - maxShow;
@@ -493,14 +516,14 @@ class _MemberAvatars extends StatelessWidget {
                 width: 28,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: AppColors.background,
+                  color: mt.background,
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.surface, width: 1.5),
+                  border: Border.all(color: mt.divider, width: 1.5),
                 ),
                 child: Center(
                   child: Text('+$extra',
                       style: GoogleFonts.sora(
-                          color: AppColors.textSecondary,
+                          color: mt.textSecondary,
                           fontSize: 9,
                           fontWeight: FontWeight.w700)),
                 ),
@@ -525,33 +548,37 @@ class _Avatar extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: _color(seed),
-          border: Border.all(color: AppColors.surface, width: 1.5),
+  Widget build(BuildContext context) {
+    final mt = context.mt;
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: _color(seed),
+        border: Border.all(color: mt.surface, width: 1.5),
+      ),
+      child: Center(
+        child: Text(
+          seed.isNotEmpty ? seed[0].toUpperCase() : '?',
+          style: GoogleFonts.sora(
+              color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
         ),
-        child: Center(
-          child: Text(
-            seed.isNotEmpty ? seed[0].toUpperCase() : '?',
-            style: GoogleFonts.sora(
-                color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
-          ),
-        ),
-      );
+      ),
+    );
+  }
 }
 
 // ── Bottom bar ────────────────────────────────────────────────────────────────
 class _BottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final mt = context.mt;
     return Container(
       height: 64,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: Color(0xFF252D40), width: 1)),
+      decoration: BoxDecoration(
+        color: mt.surface,
+        border: Border(top: BorderSide(color: mt.divider, width: 1)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
